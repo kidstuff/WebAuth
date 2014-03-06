@@ -11,8 +11,8 @@ import (
 )
 
 type Account struct {
-	Id bson.ObjectId `bson:"_id"`
-	auth.Account
+	Id           bson.ObjectId `bson:"_id"`
+	auth.Account `bson:",inline"`
 }
 
 // GetId returns an bson.ObjectId hex string
@@ -38,6 +38,7 @@ func (a *Account) SetId(id interface{}) error {
 
 type MgoUserManager struct {
 	dbsess   *mgo.Session
+	UserColl *mgo.Collection
 	gMngr    auth.GroupManager
 	Formater FormatChecker
 }
@@ -62,7 +63,7 @@ func hashPwd(pwd string) (auth.Password, error) {
 	return p, err
 }
 
-func (m *MgoUserManager) createUser(email, pwd string, app bool) (*Account, error) {
+func (m *MgoUserManager) newUser(email, pwd string, app bool) (*Account, error) {
 	if !m.Formater.EmailValidate(email) {
 		return nil, auth.ErrInvalidEmail
 	}
@@ -86,12 +87,34 @@ func (m *MgoUserManager) createUser(email, pwd string, app bool) (*Account, erro
 	return u, nil
 }
 
+func (m *MgoUserManager) insertUser(u auth.User) error {
+	err := m.UserColl.Insert(u)
+	if err != nil {
+		if mgo.IsDup(err) {
+			return auth.ErrDuplicateEmail
+		}
+		return err
+	}
+
+	return nil
+}
+
 // AddUser adds an user to database with email and password;
 // If app is false, the user is waiting to be approved.
 // It returns an error describes the first issue encountered, if any.
 func (m *MgoUserManager) AddUser(email, pwd string, app bool) (auth.User,
 	error) {
-	return m.createUser(email, pwd, app)
+	u, err := m.newUser(email, pwd, app)
+	if err != nil {
+		return nil, err
+	}
+
+	err = m.insertUser(u)
+	if err != nil {
+		return nil, err
+	}
+
+	return u, nil
 }
 
 // AddUserInfo adds an user to database;
@@ -99,7 +122,7 @@ func (m *MgoUserManager) AddUser(email, pwd string, app bool) (auth.User,
 // It returns an error describes the first issue encountered, if any.
 func (m *MgoUserManager) AddUserDetail(email, pwd string, app bool,
 	info auth.UserInfo, pri map[string]bool) (auth.User, error) {
-	u, err := m.createUser(email, pwd, app)
+	u, err := m.newUser(email, pwd, app)
 	if err != nil {
 		return nil, err
 	}
@@ -107,28 +130,71 @@ func (m *MgoUserManager) AddUserDetail(email, pwd string, app bool,
 	u.Privilege = pri
 	u.Info = info
 
+	err = m.insertUser(u)
+	if err != nil {
+		return nil, err
+	}
+
 	return u, nil
 }
 
 // UpdateInfo changes information of user specify by id.
 func (m *MgoUserManager) UpdateInfo(id interface{}, info auth.UserInfo) error {
-	panic("not implementd")
+	sid, ok := id.(string)
+	if !ok || !bson.IsObjectIdHex(sid) {
+		return auth.ErrInvalidId
+	}
+
+	return m.UserColl.UpdateId(bson.ObjectIdHex(sid), bson.M{
+		"$set": bson.M{"info": info},
+	})
 }
 
 // UpdatePrivilege changes privilege of user specify by id.
 func (m *MgoUserManager) UpdatePrivilege(id interface{}, pri map[string]bool) error {
-	panic("not implementd")
+	sid, ok := id.(string)
+	if !ok || !bson.IsObjectIdHex(sid) {
+		return auth.ErrInvalidId
+	}
+
+	return m.UserColl.UpdateId(bson.ObjectIdHex(sid), bson.M{
+		"$set": bson.M{"privilege": pri},
+	})
 }
 
 // ChangePassword changes passowrd of user specify by id.
 func (m *MgoUserManager) ChangePassword(id interface{}, pwd string) error {
-	panic("not implementd")
+	sid, ok := id.(string)
+	if !ok || !bson.IsObjectIdHex(sid) {
+		return auth.ErrInvalidId
+	}
+
+	oid := bson.ObjectIdHex(sid)
+	acc := Account{}
+	err := m.UserColl.FindId(oid).One(&acc)
+	if err != nil {
+		return err
+	}
+
+	p, err := hashPwd(pwd)
+	if err != nil {
+		return err
+	}
+
+	return m.UserColl.UpdateId(oid, bson.M{"$set": bson.M{
+		"oldpwd": acc.GetOldPassword(),
+		"pwd":    p,
+	}})
 }
 
 // DeleteUserByEmail deletes an user from database base on the given id;
 // It returns an error describes the first issue encountered, if any.
 func (m *MgoUserManager) DeleteUser(id interface{}) error {
-	panic("not implementd")
+	sid, ok := id.(string)
+	if ok && bson.IsObjectIdHex(sid) {
+		return m.UserColl.RemoveId(m.UserColl.RemoveId(bson.ObjectIdHex(sid)))
+	}
+	return auth.ErrInvalidId
 }
 
 // GetUser gets the infomations and update the LastActivity of the current

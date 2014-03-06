@@ -6,8 +6,8 @@ import (
 )
 
 type Group struct {
-	Id bson.ObjectId `bson:"_id"`
-	auth.Group
+	Id         bson.ObjectId `bson:"_id"`
+	auth.Group `bson:",inline"`
 }
 
 // GetId returns an bson.ObjectId hex string
