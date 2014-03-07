@@ -146,27 +146,20 @@ func (m *MgoUserManager) AddUserDetail(email, pwd string, app bool,
 	return u, nil
 }
 
-// UpdateInfo changes information of user specify by id.
-func (m *MgoUserManager) UpdateInfo(id interface{}, info auth.UserInfo) error {
+// UpdateUserDetail changes detail of user specify by id.
+func (m *MgoUserManager) UpdateUserDetail(id interface{}, app bool,
+	info auth.UserInfo, pri map[string]bool) error {
 	sid, ok := id.(string)
 	if !ok || !bson.IsObjectIdHex(sid) {
 		return auth.ErrInvalidId
 	}
 
 	return m.UserColl.UpdateId(bson.ObjectIdHex(sid), bson.M{
-		"$set": bson.M{"info": info},
-	})
-}
-
-// UpdatePrivilege changes privilege of user specify by id.
-func (m *MgoUserManager) UpdatePrivilege(id interface{}, pri map[string]bool) error {
-	sid, ok := id.(string)
-	if !ok || !bson.IsObjectIdHex(sid) {
-		return auth.ErrInvalidId
-	}
-
-	return m.UserColl.UpdateId(bson.ObjectIdHex(sid), bson.M{
-		"$set": bson.M{"privilege": pri},
+		"$set": bson.M{
+			"approved":  app,
+			"info":      info,
+			"privilege": pri,
+		},
 	})
 }
 

@@ -31,10 +31,9 @@ type UserManager interface {
 	// It returns an error describes the first issue encountered, if any.
 	AddUserDetail(email, pwd string, app bool, info UserInfo,
 		pri map[string]bool) (User, error)
-	// UpdateInfo changes information of user specify by id.
-	UpdateInfo(id interface{}, info UserInfo) error
-	// UpdatePrivilege changes privilege of user specify by id.
-	UpdatePrivilege(id interface{}, pri map[string]bool) error
+	// UpdateUserDetail changes detail of user specify by id.
+	UpdateUserDetail(id interface{}, app bool, info UserInfo,
+		pri map[string]bool) error
 	// ChangePassword changes passowrd of user specify by id.
 	ChangePassword(id interface{}, pwd string) error
 	// DeleteUserByEmail deletes an user from database base on the given id;
