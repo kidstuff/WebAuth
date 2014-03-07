@@ -16,10 +16,8 @@ type GroupManager interface {
 	// AddGroupDetail adds a group with full detail to database.
 	AddGroupDetail(name string, info GroupInfo, pri map[string]bool) (Grouper,
 		error)
-	// UpdateInfo updates group infomation specific by id.
-	UpdateInfo(id interface{}, info GroupInfo) error
-	// UpdatePrivilege updates group privilege specific by id.
-	UpdatePrivilege(id interface{}, pri map[string]bool) error
+	// UpdateGroupDetail updates group detail specific by id.
+	UpdateGroupDetail(id interface{}, info GroupInfo, pri map[string]bool) error
 	// FindGroup find the group specific by id.
 	FindGroup(id interface{}) (Grouper, error)
 	// FindSomeGroup find and return a slice of group specific by thier id.

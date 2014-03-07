@@ -39,13 +39,8 @@ func (m *MgoGroupManager) AddGroupDetail(name string, info auth.GroupInfo,
 	panic("not implementd")
 }
 
-// UpdateInfo updates group infomation specific by id.
-func (m *MgoGroupManager) UpdateInfo(id interface{}, info auth.GroupInfo) error {
-	panic("not implementd")
-}
-
-// UpdatePrivilege updates group privilege specific by id.
-func (m *MgoGroupManager) UpdatePrivilege(id interface{},
+// UpdateGroupDetail updates group detail specific by id.
+func (m *MgoGroupManager) UpdateGroupDetail(id interface{}, info auth.GroupInfo,
 	pri map[string]bool) error {
 	panic("not implementd")
 }
