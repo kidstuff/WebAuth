@@ -3,6 +3,7 @@ package mgoauth
 import (
 	"code.google.com/p/go.crypto/bcrypt"
 	"encoding/base64"
+	"errors"
 	"github.com/gorilla/securecookie"
 	"github.com/kidstuff/WebAuth/auth"
 	"github.com/kidstuff/mongostore"
@@ -12,31 +13,9 @@ import (
 	"time"
 )
 
-type Account struct {
-	Id           bson.ObjectId `bson:"_id"`
-	auth.Account `bson:",inline"`
-}
-
-// GetId returns an bson.ObjectId hex string
-func (a *Account) GetId() interface{} {
-	return a.Id.Hex()
-}
-
-// SetId must recive a valid bson.ObjectId hex string, otherwise an
-// ErrInvalidIdHex returned.
-func (a *Account) SetId(id interface{}) error {
-	sid, ok := id.(string)
-	if !ok {
-		return auth.ErrInvalidId
-	}
-
-	if !bson.IsObjectIdHex(sid) {
-		return auth.ErrInvalidId
-	}
-
-	a.Id = bson.ObjectIdHex(sid)
-	return nil
-}
+var (
+	ErrNoResult = errors.New("mgoauth: no result")
+)
 
 type MgoUserManager struct {
 	UserColl    *mgo.Collection
@@ -71,7 +50,7 @@ func hashPwd(pwd string) (auth.Password, error) {
 	return p, err
 }
 
-func (m *MgoUserManager) newUser(email, pwd string, app bool) (*Account, error) {
+func (m *MgoUserManager) newUser(email, pwd string, app bool) (*auth.User, error) {
 	if !m.Formater.EmailValidate(email) {
 		return nil, auth.ErrInvalidEmail
 	}
@@ -80,7 +59,7 @@ func (m *MgoUserManager) newUser(email, pwd string, app bool) (*Account, error) 
 		return nil, auth.ErrInvalidPassword
 	}
 
-	u := &Account{}
+	u := &auth.User{}
 	u.Id = bson.NewObjectId()
 	u.Email = email
 
@@ -95,7 +74,7 @@ func (m *MgoUserManager) newUser(email, pwd string, app bool) (*Account, error) 
 	return u, nil
 }
 
-func (m *MgoUserManager) insertUser(u auth.User) error {
+func (m *MgoUserManager) insertUser(u *auth.User) error {
 	err := m.UserColl.Insert(u)
 	if err != nil {
 		if mgo.IsDup(err) {
@@ -110,7 +89,7 @@ func (m *MgoUserManager) insertUser(u auth.User) error {
 // AddUser adds an user to database with email and password;
 // If app is false, the user is waiting to be approved.
 // It returns an error describes the first issue encountered, if any.
-func (m *MgoUserManager) AddUser(email, pwd string, app bool) (auth.User,
+func (m *MgoUserManager) AddUser(email, pwd string, app bool) (*auth.User,
 	error) {
 	u, err := m.newUser(email, pwd, app)
 	if err != nil {
@@ -129,7 +108,7 @@ func (m *MgoUserManager) AddUser(email, pwd string, app bool) (auth.User,
 // If app is false, the user is waiting to be approved.
 // It returns an error describes the first issue encountered, if any.
 func (m *MgoUserManager) AddUserDetail(email, pwd string, app bool,
-	info auth.UserInfo, pri map[string]bool) (auth.User, error) {
+	info auth.UserInfo, pri map[string]bool) (*auth.User, error) {
 	u, err := m.newUser(email, pwd, app)
 	if err != nil {
 		return nil, err
@@ -171,8 +150,8 @@ func (m *MgoUserManager) ChangePassword(id interface{}, pwd string) error {
 	}
 
 	oid := bson.ObjectIdHex(sid)
-	acc := Account{}
-	err := m.UserColl.FindId(oid).One(&acc)
+	u := &auth.User{}
+	err := m.UserColl.FindId(oid).One(&u)
 	if err != nil {
 		return err
 	}
@@ -183,7 +162,7 @@ func (m *MgoUserManager) ChangePassword(id interface{}, pwd string) error {
 	}
 
 	return m.UserColl.UpdateId(oid, bson.M{"$set": bson.M{
-		"oldpwd": acc.GetOldPassword(),
+		"oldpwd": u.OldPwd,
 		"pwd":    p,
 	}})
 }
@@ -201,39 +180,40 @@ func (m *MgoUserManager) DeleteUser(id interface{}) error {
 
 // FindUser finds the user with the given id;
 // Its returns an ErrNotFound if the user's id was not found.
-func (m *MgoUserManager) FindUser(id interface{}) (auth.User, error) {
+func (m *MgoUserManager) FindUser(id interface{}) (*auth.User, error) {
 	sid, ok := id.(string)
 	if !ok || !bson.IsObjectIdHex(sid) {
 		return nil, auth.ErrInvalidId
 	}
 
-	acc := &Account{}
-	err := m.UserColl.FindId(bson.ObjectIdHex(sid)).One(acc)
+	u := &auth.User{}
+	err := m.UserColl.FindId(bson.ObjectIdHex(sid)).One(u)
 	if err != nil {
 		return nil, err
 	}
 
-	return acc, nil
+	return u, nil
 }
 
 // FindUserByEmail like FindUser but receive an email
-func (m *MgoUserManager) FindUserByEmail(email string) (auth.User, error) {
+func (m *MgoUserManager) FindUserByEmail(email string) (*auth.User, error) {
 	if !m.Formater.EmailValidate(email) {
 		return nil, auth.ErrInvalidEmail
 	}
 
-	acc := &Account{}
-	err := m.UserColl.Find(bson.M{"email": email}).One(acc)
+	u := &auth.User{}
+	err := m.UserColl.Find(bson.M{"email": email}).One(u)
 	if err != nil {
 		return nil, err
 	}
 
-	return acc, nil
+	return u, nil
 }
 
-func (m *MgoUserManager) findAllUser(offsetKey interface{}, limit int, filter bson.M) ([]auth.User, error) {
+func (m *MgoUserManager) findAllUser(offsetKey interface{}, limit int,
+	filter bson.M) ([]*auth.User, error) {
 	if limit < 0 {
-		return nil, nil
+		return nil, ErrNoResult
 	}
 
 	if offsetKey != nil {
@@ -248,11 +228,11 @@ func (m *MgoUserManager) findAllUser(offsetKey interface{}, limit int, filter bs
 		}
 	}
 
-	var accounts []Account
+	var accounts []*auth.User
 	if limit > 0 {
-		accounts = make([]Account, 0, limit)
+		accounts = make([]*auth.User, 0, limit)
 	} else {
-		accounts = []Account{}
+		accounts = []*auth.User{}
 	}
 
 	err := m.UserColl.Find(filter).Limit(limit).All(&accounts)
@@ -261,10 +241,10 @@ func (m *MgoUserManager) findAllUser(offsetKey interface{}, limit int, filter bs
 	}
 
 	n := len(accounts)
-	userLst := make([]auth.User, n, n)
+	userLst := make([]*auth.User, n, n)
 
-	for idx, acc := range accounts {
-		userLst[idx] = &acc
+	for idx, u := range accounts {
+		userLst[idx] = u
 	}
 
 	return userLst, nil
@@ -275,14 +255,14 @@ func (m *MgoUserManager) findAllUser(offsetKey interface{}, limit int, filter bs
 // Limit take an number of user per page; offsetId take the Id of the last
 // user of the previous page.
 func (m *MgoUserManager) FindAllUser(offsetId interface{}, limit int) (
-	[]auth.User, error) {
+	[]*auth.User, error) {
 	return m.findAllUser(offsetId, limit, nil)
 }
 
 // FindAllUserOline finds and return a slice of current Loged user.
 // See FindAllUser for the usage.
 func (m *MgoUserManager) FindAllUserOnline(offsetId interface{}, limit int) (
-	[]auth.User, error) {
+	[]*auth.User, error) {
 	return m.findAllUser(offsetId, limit, bson.M{
 		"lastactivity": bson.M{"$lt": time.Now().
 			Add(-time.Duration(m.SessionMngr.Options.MaxAge) * time.Second)},
@@ -305,47 +285,47 @@ func (m *MgoUserManager) CountUserOnline() int {
 
 // ValidateUser validate user email and password.
 // It returns the user infomations if the email and password is correct.
-func (m *MgoUserManager) ValidateUser() (auth.User, error) {
-	acc := &Account{}
-	err := m.UserColl.Find(bson.M{"email": m.req.FormValue("email")}).One(acc)
+func (m *MgoUserManager) ValidateUser() (*auth.User, error) {
+	u := &auth.User{}
+	err := m.UserColl.Find(bson.M{"email": m.req.FormValue("email")}).One(u)
 	if err != nil {
 		return nil, err
 	}
 
 	pwdBytes := []byte(m.req.FormValue("password"))
-	tmp := make([]byte, len(pwdBytes)+len(acc.Pwd.Salt))
+	tmp := make([]byte, len(pwdBytes)+len(u.Pwd.Salt))
 	copy(tmp, pwdBytes)
-	tmp = append(tmp, acc.Pwd.Salt...)
-	if err := bcrypt.CompareHashAndPassword(acc.Pwd.Hashed, tmp); err != nil {
+	tmp = append(tmp, u.Pwd.Salt...)
+	if err := bcrypt.CompareHashAndPassword(u.Pwd.Hashed, tmp); err != nil {
 		return nil, err
 	}
 
-	return acc, nil
+	return u, nil
 }
 
-func (m *MgoUserManager) updateLastActivityAccount(id bson.ObjectId) (*Account, error) {
-	acc := &Account{}
-	err := m.UserColl.FindId(id).One(acc)
+func (m *MgoUserManager) updateLastActivity(id bson.ObjectId) (*auth.User, error) {
+	u := &auth.User{}
+	err := m.UserColl.FindId(id).One(u)
 	if err != nil {
 		return nil, err
 	}
 
-	acc.LastActivity = time.Now()
+	u.LastActivity = time.Now()
 	// ??? should we ignore the error return here?
 	err = m.UserColl.UpdateId(id, bson.M{
-		"$set": bson.M{"lastactivity": acc.LastActivity},
+		"$set": bson.M{"lastactivity": u.LastActivity},
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return acc, nil
+	return u, nil
 }
 
 // GetUser gets the infomations and update the LastActivity of the current
 // Loged user;
 // It returns an error describes the first issue encountered, if any.
-func (m *MgoUserManager) GetUser() (auth.User, error) {
+func (m *MgoUserManager) GetUser() (*auth.User, error) {
 	cook, cookErr := m.req.Cookie(m.cookieName)
 	if cookErr == nil {
 		// get user login state save in cookie
@@ -361,7 +341,7 @@ func (m *MgoUserManager) GetUser() (auth.User, error) {
 			return nil, auth.ErrNotLogged
 		}
 
-		return m.updateLastActivityAccount(state.UserId)
+		return m.updateLastActivity(state.UserId)
 	}
 
 	sess, errSess := m.SessionMngr.Get(m.req, m.sessionName)
@@ -376,7 +356,7 @@ func (m *MgoUserManager) GetUser() (auth.User, error) {
 			return nil, auth.ErrNotLogged
 		}
 
-		return m.updateLastActivityAccount(bson.ObjectIdHex(sid))
+		return m.updateLastActivity(bson.ObjectIdHex(sid))
 	}
 
 	return nil, auth.ErrNotLogged
@@ -461,7 +441,7 @@ func (m *MgoUserManager) ValidConfirmCode(id interface{}, key, code string,
 }
 
 // Can uses GroupManager to determines if user have privilege to do something.
-func (m *MgoUserManager) Can(user auth.User, do string) bool {
+func (m *MgoUserManager) Can(user *auth.User, do string) bool {
 	panic("not implementd")
 }
 

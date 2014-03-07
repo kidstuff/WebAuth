@@ -8,20 +8,8 @@ import (
 	"time"
 )
 
-type User interface {
-	GetId() interface{}
-	SetId(interface{}) error
-	GetEmail() string
-	GetPassword() Password
-	GetOldPassword() Password
-	GetInfomation() UserInfo
-	GetPrivilege() map[string]bool
-	IsApproved() bool
-	GetConfirmCodes() map[string]string
-	GetBriefGroups() []BriefGroup
-}
-
-type Account struct {
+type User struct {
+	Id           interface{} `bson:"_id"`
 	Email        string
 	OldPwd       Password
 	Pwd          Password
@@ -31,38 +19,6 @@ type Account struct {
 	Approved     bool
 	ConfirmCodes map[string]string
 	BriefGroups  []BriefGroup
-}
-
-func (a *Account) GetEmail() string {
-	return a.Email
-}
-
-func (a *Account) GetPassword() Password {
-	return a.Pwd
-}
-
-func (a *Account) GetOldPassword() Password {
-	return a.OldPwd
-}
-
-func (a *Account) GetInfomation() UserInfo {
-	return a.Info
-}
-
-func (a *Account) GetPrivilege() map[string]bool {
-	return a.Privilege
-}
-
-func (a *Account) IsApproved() bool {
-	return a.Approved
-}
-
-func (a *Account) GetConfirmCodes() map[string]string {
-	return a.ConfirmCodes
-}
-
-func (a *Account) GetBriefGroups() []BriefGroup {
-	return a.BriefGroups
 }
 
 type Password struct {

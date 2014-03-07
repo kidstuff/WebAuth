@@ -25,12 +25,12 @@ type UserManager interface {
 	// AddUser adds an user to database with email and password;
 	// If app is false, the user is waiting to be approved.
 	// It returns an error describes the first issue encountered, if any.
-	AddUser(email, pwd string, app bool) (User, error)
+	AddUser(email, pwd string, app bool) (*User, error)
 	// AddUserInfo adds an user to database;
 	// If app is false, the user is waiting to be approved.
 	// It returns an error describes the first issue encountered, if any.
 	AddUserDetail(email, pwd string, app bool, info UserInfo,
-		pri map[string]bool) (User, error)
+		pri map[string]bool) (*User, error)
 	// UpdateUserDetail changes detail of user specify by id.
 	UpdateUserDetail(id interface{}, app bool, info UserInfo,
 		pri map[string]bool) error
@@ -41,27 +41,27 @@ type UserManager interface {
 	DeleteUser(id interface{}) error
 	// FindUser finds the user with the given id;
 	// Its returns an ErrNotFound if the user's id was not found.
-	FindUser(id interface{}) (User, error)
+	FindUser(id interface{}) (*User, error)
 	// FindUserByEmail like FindUser but receive an email
-	FindUserByEmail(email string) (User, error)
+	FindUserByEmail(email string) (*User, error)
 	// FindAllUser finds and return a slice of user.
 	// offsetId, limit define which sub-sequence of matching users to return.
 	// Limit take an number of user per page; offsetId take the Id of the last
 	// user of the previous page.
-	FindAllUser(offsetId interface{}, limit int) ([]User, error)
+	FindAllUser(offsetId interface{}, limit int) ([]*User, error)
 	// FindAllUserOline finds and return a slice of current Loged user.
 	// See FindAllUser for the usage.
-	FindAllUserOnline(offsetId interface{}, limit int) ([]User, error)
+	FindAllUserOnline(offsetId interface{}, limit int) ([]*User, error)
 	// CountUserOnline counts the number of user current Loged.
 	// It counts the user that LastActivity+OnlineThreshold<Now.
 	CountUserOnline() int
 	// ValidateUser validate user base on the current request.
 	// It returns the user infomations if the email and password is correct.
-	ValidateUser() (User, error)
+	ValidateUser() (*User, error)
 	// GetUser gets the infomations and update the LastActivity of the current
 	// loged user;
 	// It returns an error describes the first issue encountered, if any.
-	GetUser() (User, error)
+	GetUser() (*User, error)
 	// Login logs user in by using a session that store user id.
 	// Stay take a number of second to keep the user Login state.
 	Login(id interface{}, stay int) error
@@ -71,5 +71,5 @@ type UserManager interface {
 	// Re-generate or delete code for that key if need.
 	ValidConfirmCode(id interface{}, key, code string, regen, del bool) (bool, error)
 	// Can uses GroupManager to determines if user have privilege to do something.
-	Can(user User, do string) bool
+	Can(user *User, do string) bool
 }
