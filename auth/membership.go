@@ -9,7 +9,6 @@ package auth
 
 import (
 	"errors"
-	"net/http"
 )
 
 var (
@@ -40,10 +39,6 @@ type UserManager interface {
 	// DeleteUserByEmail deletes an user from database base on the given id;
 	// It returns an error describes the first issue encountered, if any.
 	DeleteUser(id interface{}) error
-	// GetUser gets the infomations and update the LastActivity of the current
-	// Loged user;
-	// It returns an error describes the first issue encountered, if any.
-	GetUser() (User, error)
 	// FindUser finds the user with the given id;
 	// Its returns an ErrNotFound if the user's id was not found.
 	FindUser(id interface{}) (User, error)
@@ -60,9 +55,13 @@ type UserManager interface {
 	// CountUserOnline counts the number of user current Loged.
 	// It counts the user that LastActivity+OnlineThreshold<Now.
 	CountUserOnline() int
-	// ValidateUser validate user email and password.
+	// ValidateUser validate user base on the current request.
 	// It returns the user infomations if the email and password is correct.
-	ValidateUser(r *http.Request) (User, error)
+	ValidateUser() (User, error)
+	// GetUser gets the infomations and update the LastActivity of the current
+	// loged user;
+	// It returns an error describes the first issue encountered, if any.
+	GetUser() (User, error)
 	// Login logs user in by using a session that store user id.
 	// Stay take a number of second to keep the user Login state.
 	Login(id interface{}, stay int) error
