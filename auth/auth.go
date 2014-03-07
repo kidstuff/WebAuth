@@ -12,10 +12,11 @@ import (
 )
 
 var (
-	ErrInvalidId       error = errors.New("auth: invalid id")
-	ErrInvalidEmail    error = errors.New("auth: invalid email address")
-	ErrDuplicateEmail  error = errors.New("auth: duplicate email address")
-	ErrInvalidPassword error = errors.New("auth: invalid password")
+	ErrInvalidId       = errors.New("auth: invalid id")
+	ErrInvalidEmail    = errors.New("auth: invalid email address")
+	ErrDuplicateEmail  = errors.New("auth: duplicate email address")
+	ErrInvalidPassword = errors.New("auth: invalid password")
+	ErrNotLogged       = errors.New("auth: no login user found")
 )
 
 type UserManager interface {
