@@ -13,7 +13,7 @@ var (
 )
 
 type BriefGroup struct {
-	Id   interface{}
+	Id   interface{} `bson:"_id"`
 	Name string
 }
 
@@ -30,10 +30,10 @@ type GroupInfo struct {
 
 type GroupManager interface {
 	// AddGroupDetail adds a group with full detail to database.
-	AddGroupDetail(name string, info GroupInfo, pri map[string]bool) (*Group,
+	AddGroupDetail(name string, info *GroupInfo, pri map[string]bool) (*Group,
 		error)
 	// UpdateGroupDetail updates group detail specific by id.
-	UpdateGroupDetail(id interface{}, info GroupInfo, pri map[string]bool) error
+	UpdateGroupDetail(id interface{}, info *GroupInfo, pri map[string]bool) error
 	// FindGroup find the group specific by id.
 	FindGroup(id interface{}) (*Group, error)
 	// FindSomeGroup find and return a slice of group specific by thier id.

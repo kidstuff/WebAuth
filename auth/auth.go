@@ -29,11 +29,12 @@ type UserManager interface {
 	// AddUserInfo adds an user to database;
 	// If app is false, the user is waiting to be approved.
 	// It returns an error describes the first issue encountered, if any.
-	AddUserDetail(email, pwd string, app bool, info UserInfo,
+	AddUserDetail(email, pwd string, app *bool, info *UserInfo,
 		pri map[string]bool) (*User, error)
-	// UpdateUserDetail changes detail of user specify by id.
-	UpdateUserDetail(id interface{}, app bool, info UserInfo,
-		pri map[string]bool) error
+	// UpdateUserDetail changes detail of user specify by id. Set nill value to
+	// keep the current field.
+	UpdateUserDetail(id interface{}, app *bool, info *UserInfo,
+		pri map[string]bool, code map[string]string, groups []BriefGroup) error
 	// ChangePassword changes passowrd of user specify by id.
 	ChangePassword(id interface{}, pwd string) error
 	// DeleteUserByEmail deletes an user from database base on the given id;

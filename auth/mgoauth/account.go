@@ -107,15 +107,15 @@ func (m *MgoUserManager) AddUser(email, pwd string, app bool) (*auth.User,
 // AddUserInfo adds an user to database;
 // If app is false, the user is waiting to be approved.
 // It returns an error describes the first issue encountered, if any.
-func (m *MgoUserManager) AddUserDetail(email, pwd string, app bool,
-	info auth.UserInfo, pri map[string]bool) (*auth.User, error) {
-	u, err := m.newUser(email, pwd, app)
+func (m *MgoUserManager) AddUserDetail(email, pwd string, app *bool,
+	info *auth.UserInfo, pri map[string]bool) (*auth.User, error) {
+	u, err := m.newUser(email, pwd, *app)
 	if err != nil {
 		return nil, err
 	}
 
 	u.Privilege = pri
-	u.Info = info
+	u.Info = *info
 
 	err = m.insertUser(u)
 	if err != nil {
@@ -125,21 +125,37 @@ func (m *MgoUserManager) AddUserDetail(email, pwd string, app bool,
 	return u, nil
 }
 
+func (m *MgoUserManager) UpdateUser(user *auth.User) error {
+	return m.UserColl.UpdateId(user.Id, user)
+}
+
 // UpdateUserDetail changes detail of user specify by id.
-func (m *MgoUserManager) UpdateUserDetail(id interface{}, app bool,
-	info auth.UserInfo, pri map[string]bool) error {
+func (m *MgoUserManager) UpdateUserDetail(id interface{}, app *bool,
+	info *auth.UserInfo, pri map[string]bool, code map[string]string,
+	groups []auth.BriefGroup) error {
 	sid, ok := id.(string)
 	if !ok || !bson.IsObjectIdHex(sid) {
 		return auth.ErrInvalidId
 	}
 
-	return m.UserColl.UpdateId(bson.ObjectIdHex(sid), bson.M{
-		"$set": bson.M{
-			"approved":  app,
-			"info":      info,
-			"privilege": pri,
-		},
-	})
+	change := bson.M{}
+	if app != nil {
+		change["approved"] = *app
+	}
+	if info != nil {
+		change["info"] = info
+	}
+	if pri != nil {
+		change["privilege"] = pri
+	}
+	if code != nil {
+		change["confirmcodes"] = code
+	}
+	if groups != nil {
+		change["briefgroups"] = groups
+	}
+
+	return m.UserColl.UpdateId(bson.ObjectIdHex(sid), bson.M{"$set": change})
 }
 
 // ChangePassword changes passowrd of user specify by id.
@@ -437,12 +453,56 @@ func (m *MgoUserManager) Logout() error {
 // Re-generate or delete code for that key if need.
 func (m *MgoUserManager) ValidConfirmCode(id interface{}, key, code string,
 	regen, del bool) (bool, error) {
-	panic("not implementd")
+	user, err := m.FindUser(id)
+	if err != nil {
+		return false, err
+	}
+
+	if user.ConfirmCodes[key] == code {
+		if del {
+			delete(user.ConfirmCodes, key)
+		}
+
+		if regen {
+			user.ConfirmCodes[key] = base64.URLEncoding.EncodeToString(securecookie.
+				GenerateRandomKey(64))
+		}
+
+		m.UpdateUserDetail(id, nil, nil, nil, user.ConfirmCodes, nil)
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // Can uses GroupManager to determines if user have privilege to do something.
 func (m *MgoUserManager) Can(user *auth.User, do string) bool {
-	panic("not implementd")
+	if user.Privilege[do] {
+		return true
+	}
+
+	aid := make([]interface{}, 0, len(user.BriefGroups))
+	for _, v := range user.BriefGroups {
+		sid, ok := v.Id.(string)
+		if !ok || !bson.IsObjectIdHex(sid) {
+			continue
+		}
+
+		aid = append(aid, sid)
+	}
+
+	groups, err := m.groupMngr.FindSomeGroup(aid...)
+	if err != nil {
+		return false
+	}
+
+	for _, v := range groups {
+		if v.Privilege[do] {
+			return true
+		}
+	}
+
+	return false
 }
 
 var _ auth.UserManager = &MgoUserManager{}
