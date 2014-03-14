@@ -9,6 +9,7 @@ package auth
 
 import (
 	"errors"
+	"time"
 )
 
 var (
@@ -20,8 +21,8 @@ var (
 )
 
 type UserManager interface {
-	// SetGroupManager sets GroupManager use for the Can method.
-	SetGroupManager(gm GroupManager)
+	// GroupManager returns the GroupManager.
+	GroupManager() GroupManager
 	// AddUser adds an user to database with email and password;
 	// If app is false, the user is waiting to be approved.
 	// It returns an error describes the first issue encountered, if any.
@@ -29,7 +30,7 @@ type UserManager interface {
 	// AddUserInfo adds an user to database;
 	// If app is false, the user is waiting to be approved.
 	// It returns an error describes the first issue encountered, if any.
-	AddUserDetail(email, pwd string, app *bool, info *UserInfo,
+	AddUserDetail(email, pwd string, app bool, info *UserInfo,
 		pri map[string]bool) (*User, error)
 	// UpdateUserDetail changes detail of user specify by id. Set nill value to
 	// keep the current field.
@@ -58,16 +59,18 @@ type UserManager interface {
 	CountUserOnline() int
 	// ValidateUser validate user base on the current request.
 	// It returns the user infomations if the email and password is correct.
-	ValidateUser() (*User, error)
+	ValidateUser(email, pwd string) (*User, error)
 	// GetUser gets the infomations and update the LastActivity of the current
-	// loged user;
+	// loged user by the token (given by Login method);
 	// It returns an error describes the first issue encountered, if any.
-	GetUser() (*User, error)
-	// Login logs user in by using a session that store user id.
-	// Stay take a number of second to keep the user Login state.
-	Login(id interface{}, stay int) error
+	GetUser(token string) (*User, error)
+	// Login logs user in by given user id.
+	// Stay is the duration to keep the user Login state.
+	// It returns a token string, use the token to keep track on the user with
+	// GetUser or Logout.
+	Login(id interface{}, stay time.Duration) (string, error)
 	// Logout logs the current user out.
-	Logout() error
+	Logout(token string) error
 	// ValidConfirmCode valid the code for specific key of the user specify by id.
 	// Re-generate or delete code for that key if need.
 	ValidConfirmCode(id interface{}, key, code string, regen, del bool) (bool, error)

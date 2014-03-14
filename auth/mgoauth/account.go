@@ -6,10 +6,8 @@ import (
 	"errors"
 	"github.com/gorilla/securecookie"
 	"github.com/kidstuff/WebAuth/auth"
-	"github.com/kidstuff/mongostore"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
-	"net/http"
 	"time"
 )
 
@@ -18,21 +16,27 @@ var (
 )
 
 type MgoUserManager struct {
-	UserColl    *mgo.Collection
-	LoginColl   *mgo.Collection
-	Formater    FormatChecker
-	SessionMngr mongostore.MongoStore
-	dbsess      *mgo.Session
-	groupMngr   auth.GroupManager
-	req         *http.Request
-	rw          http.ResponseWriter
-	sessionName string
-	cookieName  string
+	OnlineThreshold time.Duration
+	UserColl        *mgo.Collection
+	LoginColl       *mgo.Collection
+	Formater        FormatChecker
+	groupMngr       auth.GroupManager
 }
 
-// SetGroupManager sets GroupManager use for the Can method.
-func (m *MgoUserManager) SetGroupManager(mngr auth.GroupManager) {
-	m.groupMngr = mngr
+func NewMgoUserManager(db *mgo.Database) *MgoUserManager {
+	mngr := &MgoUserManager{
+		UserColl:  db.C("mgoauth_user"),
+		LoginColl: db.C("mgoauth_login"),
+	}
+
+	mngr.Formater, _ = NewSimpleChecker(9)
+
+	return mngr
+}
+
+// GroupManager returns the GroupManager.
+func (m *MgoUserManager) GroupManager() auth.GroupManager {
+	return m.groupMngr
 }
 
 func hashPwd(pwd string) (auth.Password, error) {
@@ -107,9 +111,9 @@ func (m *MgoUserManager) AddUser(email, pwd string, app bool) (*auth.User,
 // AddUserInfo adds an user to database;
 // If app is false, the user is waiting to be approved.
 // It returns an error describes the first issue encountered, if any.
-func (m *MgoUserManager) AddUserDetail(email, pwd string, app *bool,
+func (m *MgoUserManager) AddUserDetail(email, pwd string, app bool,
 	info *auth.UserInfo, pri map[string]bool) (*auth.User, error) {
-	u, err := m.newUser(email, pwd, *app)
+	u, err := m.newUser(email, pwd, app)
 	if err != nil {
 		return nil, err
 	}
@@ -133,9 +137,9 @@ func (m *MgoUserManager) UpdateUser(user *auth.User) error {
 func (m *MgoUserManager) UpdateUserDetail(id interface{}, app *bool,
 	info *auth.UserInfo, pri map[string]bool, code map[string]string,
 	groups []auth.BriefGroup) error {
-	sid, ok := id.(string)
-	if !ok || !bson.IsObjectIdHex(sid) {
-		return auth.ErrInvalidId
+	oid, err := getId(id)
+	if err != nil {
+		return err
 	}
 
 	change := bson.M{}
@@ -155,19 +159,18 @@ func (m *MgoUserManager) UpdateUserDetail(id interface{}, app *bool,
 		change["briefgroups"] = groups
 	}
 
-	return m.UserColl.UpdateId(bson.ObjectIdHex(sid), bson.M{"$set": change})
+	return m.UserColl.UpdateId(oid, bson.M{"$set": change})
 }
 
 // ChangePassword changes passowrd of user specify by id.
 func (m *MgoUserManager) ChangePassword(id interface{}, pwd string) error {
-	sid, ok := id.(string)
-	if !ok || !bson.IsObjectIdHex(sid) {
-		return auth.ErrInvalidId
+	oid, err := getId(id)
+	if err != nil {
+		return err
 	}
 
-	oid := bson.ObjectIdHex(sid)
 	u := &auth.User{}
-	err := m.UserColl.FindId(oid).One(&u)
+	err = m.UserColl.FindId(oid).One(&u)
 	if err != nil {
 		return err
 	}
@@ -186,24 +189,24 @@ func (m *MgoUserManager) ChangePassword(id interface{}, pwd string) error {
 // DeleteUserByEmail deletes an user from database base on the given id;
 // It returns an error describes the first issue encountered, if any.
 func (m *MgoUserManager) DeleteUser(id interface{}) error {
-	sid, ok := id.(string)
-	if !ok || !bson.IsObjectIdHex(sid) {
-		return auth.ErrInvalidId
+	oid, err := getId(id)
+	if err != nil {
+		return err
 	}
 
-	return m.UserColl.RemoveId(m.UserColl.RemoveId(bson.ObjectIdHex(sid)))
+	return m.UserColl.RemoveId(oid)
 }
 
 // FindUser finds the user with the given id;
 // Its returns an ErrNotFound if the user's id was not found.
 func (m *MgoUserManager) FindUser(id interface{}) (*auth.User, error) {
-	sid, ok := id.(string)
-	if !ok || !bson.IsObjectIdHex(sid) {
-		return nil, auth.ErrInvalidId
+	oid, err := getId(id)
+	if err != nil {
+		return nil, err
 	}
 
 	u := &auth.User{}
-	err := m.UserColl.FindId(bson.ObjectIdHex(sid)).One(u)
+	err = m.UserColl.FindId(oid).One(u)
 	if err != nil {
 		return nil, err
 	}
@@ -233,14 +236,14 @@ func (m *MgoUserManager) findAllUser(offsetKey interface{}, limit int,
 	}
 
 	if offsetKey != nil {
-		sid, ok := offsetKey.(string)
-		if !ok {
-			return nil, auth.ErrInvalidId
+		oid, err := getId(offsetKey)
+		if err != nil {
+			return nil, err
 		} else {
 			if filter == nil {
 				filter = bson.M{}
 			}
-			filter["_id"] = bson.M{"$gt": bson.ObjectIdHex(sid)}
+			filter["_id"] = bson.M{"$gt": oid}
 		}
 	}
 
@@ -280,8 +283,7 @@ func (m *MgoUserManager) FindAllUser(offsetId interface{}, limit int) (
 func (m *MgoUserManager) FindAllUserOnline(offsetId interface{}, limit int) (
 	[]*auth.User, error) {
 	return m.findAllUser(offsetId, limit, bson.M{
-		"lastactivity": bson.M{"$lt": time.Now().
-			Add(-time.Duration(m.SessionMngr.Options.MaxAge) * time.Second)},
+		"lastactivity": bson.M{"$lt": time.Now().Add(m.OnlineThreshold)},
 	})
 }
 
@@ -290,7 +292,7 @@ func (m *MgoUserManager) FindAllUserOnline(offsetId interface{}, limit int) (
 func (m *MgoUserManager) CountUserOnline() int {
 	n, err := m.UserColl.Find(bson.M{"lastactivity": bson.M{
 		"$lt": time.Now().
-			Add(-time.Duration(m.SessionMngr.Options.MaxAge) * time.Second),
+			Add(m.OnlineThreshold),
 	}}).Count()
 	if err == nil {
 		return n
@@ -301,14 +303,13 @@ func (m *MgoUserManager) CountUserOnline() int {
 
 // ValidateUser validate user email and password.
 // It returns the user infomations if the email and password is correct.
-func (m *MgoUserManager) ValidateUser() (*auth.User, error) {
-	u := &auth.User{}
-	err := m.UserColl.Find(bson.M{"email": m.req.FormValue("email")}).One(u)
+func (m *MgoUserManager) ValidateUser(email, pwd string) (*auth.User, error) {
+	u, err := m.FindUserByEmail(email)
 	if err != nil {
 		return nil, err
 	}
 
-	pwdBytes := []byte(m.req.FormValue("password"))
+	pwdBytes := []byte(pwd)
 	tmp := make([]byte, len(pwdBytes)+len(u.Pwd.Salt))
 	copy(tmp, pwdBytes)
 	tmp = append(tmp, u.Pwd.Salt...)
@@ -341,112 +342,53 @@ func (m *MgoUserManager) updateLastActivity(id bson.ObjectId) (*auth.User, error
 // GetUser gets the infomations and update the LastActivity of the current
 // Loged user;
 // It returns an error describes the first issue encountered, if any.
-func (m *MgoUserManager) GetUser() (*auth.User, error) {
-	cook, cookErr := m.req.Cookie(m.cookieName)
-	if cookErr == nil {
-		// get user login state save in cookie
-		state := LoginState{}
-		err := m.LoginColl.FindId(cook.Value).One(&state)
-		if err != nil {
-			return nil, err
-		}
-
-		if state.Exp.Before(time.Now()) {
-			m.LoginColl.RemoveId(cook.Value)
-			// don't need to call Logout since the cookie with expire soon
-			return nil, auth.ErrNotLogged
-		}
-
-		return m.updateLastActivity(state.UserId)
+func (m *MgoUserManager) GetUser(token string) (*auth.User, error) {
+	state := LoginState{}
+	err := m.LoginColl.FindId(token).One(&state)
+	if err == mgo.ErrNotFound {
+		return nil, auth.ErrNotLogged
+	} else {
+		return nil, err
 	}
 
-	sess, errSess := m.SessionMngr.Get(m.req, m.sessionName)
-	if errSess == nil {
-		id, ok := sess.Values["login_info"]
-		if !ok {
-			return nil, auth.ErrNotLogged
-		}
-
-		sid, ok := id.(string)
-		if !ok || !bson.IsObjectIdHex(sid) {
-			return nil, auth.ErrNotLogged
-		}
-
-		return m.updateLastActivity(bson.ObjectIdHex(sid))
+	if !state.On.Add(state.Threshold).After(time.Now()) {
+		m.LoginColl.RemoveId(token)
 	}
 
-	return nil, auth.ErrNotLogged
+	return m.updateLastActivity(state.UserId)
 }
 
-// Login logs user in by using a session that store user id.
-// Stay take a number of second to keep the user Login state.
-func (m *MgoUserManager) Login(id interface{}, stay int) error {
-	// try to logout first then login again
-	err := m.Logout()
+// Login logs user in.
+// Stay must be < default OnlineThreshold user will stay in OnlineThreshold.
+func (m *MgoUserManager) Login(id interface{}, stay time.Duration) (string, error) {
+	if stay < m.OnlineThreshold {
+		stay = m.OnlineThreshold
+	}
+
+	oid, err := getId(id)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	sid, ok := id.(string)
-	if !ok || !bson.IsObjectIdHex(sid) {
-		return auth.ErrInvalidId
+	state := LoginState{
+		On:        time.Now(),
+		Threshold: stay,
+		UserId:    oid,
+		Token: oid.Hex() + base64.URLEncoding.
+			EncodeToString(securecookie.GenerateRandomKey(64)),
 	}
 
-	if stay > 0 {
-		// use cookie and remember collection
-		state := LoginState{
-			UserId: bson.ObjectIdHex(sid), // id of the current user
-			Exp:    time.Now().Add(time.Duration(stay) * time.Second),
-			Token: base64.URLEncoding.
-				EncodeToString(securecookie.GenerateRandomKey(128)),
-		}
-
-		http.SetCookie(m.rw, &http.Cookie{
-			Name:    m.cookieName,
-			Value:   state.Token,
-			MaxAge:  stay,
-			Expires: state.Exp,
-		})
-
-		return m.LoginColl.Insert(&state)
-	} else {
-		// use session
-		sess, err := m.SessionMngr.New(m.req, m.sessionName)
-		if err != nil {
-			return err
-		}
-
-		sess.Values["login_sid"] = sid
-
-		return m.SessionMngr.Save(m.req, m.rw, sess)
+	err = m.LoginColl.Insert(&state)
+	if err != nil {
+		return "", err
 	}
 
-	return nil
+	return state.Token, nil
 }
 
 // Logout logs the current user out.
-func (m *MgoUserManager) Logout() error {
-	cook, err := m.req.Cookie(m.cookieName)
-	if err == nil {
-		http.SetCookie(m.rw, &http.Cookie{
-			Name:   m.cookieName,
-			MaxAge: -1,
-		})
-		if !bson.IsObjectIdHex(cook.Value) {
-			return auth.ErrInvalidId
-		}
-		return m.LoginColl.RemoveId(bson.ObjectIdHex(cook.Value))
-	}
-
-	sess, err := m.SessionMngr.Get(m.req, m.sessionName)
-	if err == nil {
-		// just make sure
-		delete(sess.Values, "login_sid")
-		sess.Options.MaxAge = -1
-		return sess.Save(m.req, m.rw)
-	}
-
-	return nil
+func (m *MgoUserManager) Logout(token string) error {
+	return m.LoginColl.RemoveId(token)
 }
 
 // ValidConfirmCode valid the code for specific key of the user specify by id.
@@ -483,12 +425,7 @@ func (m *MgoUserManager) Can(user *auth.User, do string) bool {
 
 	aid := make([]interface{}, 0, len(user.BriefGroups))
 	for _, v := range user.BriefGroups {
-		sid, ok := v.Id.(string)
-		if !ok || !bson.IsObjectIdHex(sid) {
-			continue
-		}
-
-		aid = append(aid, sid)
+		aid = append(aid, v.Id)
 	}
 
 	groups, err := m.groupMngr.FindSomeGroup(aid...)

@@ -29,9 +29,9 @@ func (m *MgoGroupManager) AddGroupDetail(name string, info *auth.GroupInfo,
 // UpdateGroupDetail updates group detail specific by id.
 func (m *MgoGroupManager) UpdateGroupDetail(id interface{}, info *auth.GroupInfo,
 	pri map[string]bool) error {
-	sid, ok := id.(string)
-	if !ok || !bson.IsObjectIdHex(sid) {
-		return auth.ErrInvalidId
+	oid, err := getId(id)
+	if err != nil {
+		return err
 	}
 
 	change := bson.M{}
@@ -42,18 +42,18 @@ func (m *MgoGroupManager) UpdateGroupDetail(id interface{}, info *auth.GroupInfo
 		change["privilege"] = pri
 	}
 
-	return m.GroupColl.UpdateId(bson.ObjectIdHex(sid), bson.M{"$set": change})
+	return m.GroupColl.UpdateId(oid, bson.M{"$set": change})
 }
 
 // FindGroup find the group specific by id.
 func (m *MgoGroupManager) FindGroup(id interface{}) (*auth.Group, error) {
-	sid, ok := id.(string)
-	if !ok || !bson.IsObjectIdHex(sid) {
-		return nil, auth.ErrInvalidId
+	oid, err := getId(id)
+	if err != nil {
+		return nil, err
 	}
 
 	group := &auth.Group{}
-	err := m.GroupColl.FindId(bson.ObjectIdHex(sid)).One(group)
+	err = m.GroupColl.FindId(oid).One(group)
 	if err != nil {
 		return nil, err
 	}
@@ -66,11 +66,11 @@ func (m *MgoGroupManager) FindSomeGroup(id ...interface{}) (
 	[]*auth.Group, error) {
 	aid := make([]bson.ObjectId, 0, len(id))
 	for _, v := range id {
-		sid, ok := v.(string)
-		if !ok || !bson.IsObjectIdHex(sid) {
-			continue // ??? should we return error here?
+		oid, err := getId(v)
+		if err != nil {
+			continue
 		}
-		aid = append(aid, bson.ObjectIdHex(sid))
+		aid = append(aid, oid)
 	}
 
 	if len(aid) == 0 {
@@ -88,15 +88,13 @@ func (m *MgoGroupManager) FindAllGroup(offsetId interface{}, limit int) (
 		return nil, ErrNoResult
 	}
 
-	sid, ok := offsetId.(string)
-	if !ok || !bson.IsObjectIdHex(sid) {
-		return nil, auth.ErrInvalidId
+	oid, err := getId(offsetId)
+	if err != nil {
+		return nil, err
 	}
 
 	var groups []*auth.Group
-	err := m.GroupColl.Find(bson.M{"_id": bson.M{
-		"$gt": bson.ObjectIdHex(sid),
-	}}).All(&groups)
+	err = m.GroupColl.Find(bson.M{"_id": bson.M{"$gt": oid}}).All(&groups)
 
 	if err != nil {
 		return nil, err
