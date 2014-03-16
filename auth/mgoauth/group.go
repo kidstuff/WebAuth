@@ -10,6 +10,10 @@ type MgoGroupManager struct {
 	GroupColl *mgo.Collection
 }
 
+func NewMgoGroupManager(db *mgo.Database) *MgoGroupManager {
+	return &MgoGroupManager{db.C("mgoauth_group")}
+}
+
 // AddGroupDetail adds a group with full detail to database.
 func (m *MgoGroupManager) AddGroupDetail(name string, info *auth.GroupInfo,
 	pri map[string]bool) (*auth.Group, error) {
@@ -20,6 +24,9 @@ func (m *MgoGroupManager) AddGroupDetail(name string, info *auth.GroupInfo,
 
 	err := m.GroupColl.Insert(group)
 	if err != nil {
+		if mgo.IsDup(err) {
+			return nil, auth.ErrDuplicateName
+		}
 		return nil, err
 	}
 
@@ -84,17 +91,26 @@ func (m *MgoGroupManager) FindSomeGroup(id ...interface{}) (
 // sub-sequence of matching groups to be returned.
 func (m *MgoGroupManager) FindAllGroup(offsetId interface{}, limit int) (
 	[]*auth.Group, error) {
-	if limit < 0 {
+	if limit == 0 {
 		return nil, ErrNoResult
 	}
 
+	filter := bson.M{}
 	oid, err := getId(offsetId)
-	if err != nil {
-		return nil, err
+	if err == nil {
+		filter["_id"] = bson.M{"$gt": oid}
 	}
 
+	query := m.GroupColl.Find(filter)
 	var groups []*auth.Group
-	err = m.GroupColl.Find(bson.M{"_id": bson.M{"$gt": oid}}).All(&groups)
+	if limit > 0 {
+		query.Limit(limit)
+		groups = make([]*auth.Group, 0, limit)
+	} else {
+		groups = []*auth.Group{}
+	}
+
+	err = query.All(&groups)
 
 	if err != nil {
 		return nil, err
@@ -102,6 +118,20 @@ func (m *MgoGroupManager) FindAllGroup(offsetId interface{}, limit int) (
 
 	return groups, nil
 
+}
+
+func (m *MgoGroupManager) DeleteGroup(id interface{}) error {
+	oid, err := getId(id)
+	if err != nil {
+		return err
+	}
+	// TODO: remove this group form user briefgroups too?
+	return m.GroupColl.RemoveId(oid)
+}
+
+func (m *MgoGroupManager) Close() error {
+	m.GroupColl.Database.Session.Close()
+	return nil
 }
 
 var _ auth.GroupManager = &MgoGroupManager{}

@@ -2,6 +2,7 @@ package mgoauth
 
 import (
 	"github.com/kidstuff/WebAuth/auth"
+	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 	"time"
 )
@@ -27,4 +28,45 @@ func getId(id interface{}) (bson.ObjectId, error) {
 	}
 
 	return bson.ObjectIdHex(sid), nil
+}
+
+// EnsureIndex builds the index for users data and login state collection.
+func EnsureIndex(db *mgo.Database, onlineThreshold time.Duration) error {
+	groupColl := db.C("mgoauth_group")
+	userColl := db.C("mgoauth_user")
+	loginColl := db.C("mgoauth_login")
+
+	err := userColl.EnsureIndex(mgo.Index{
+		Key:    []string{"email"},
+		Unique: true,
+	})
+	if err != nil {
+		return err
+	}
+
+	err = userColl.EnsureIndexKey("lastactivity")
+	if err != nil {
+		return err
+	}
+
+	err = loginColl.EnsureIndex(mgo.Index{
+		Key:      []string{"userid"},
+		Unique:   true,
+		DropDups: true,
+	})
+	if err != nil {
+		return err
+	}
+
+	err = loginColl.EnsureIndex(mgo.Index{
+		Key:         []string{"on"},
+		ExpireAfter: onlineThreshold,
+	})
+
+	err = groupColl.EnsureIndex(mgo.Index{
+		Key:    []string{"name"},
+		Unique: true,
+	})
+
+	return nil
 }

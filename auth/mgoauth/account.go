@@ -20,13 +20,15 @@ type MgoUserManager struct {
 	UserColl        *mgo.Collection
 	LoginColl       *mgo.Collection
 	Formater        FormatChecker
-	groupMngr       auth.GroupManager
+	GroupMngr       auth.GroupManager
 }
 
-func NewMgoUserManager(db *mgo.Database) *MgoUserManager {
+func NewMgoUserManager(db *mgo.Database, groupMngr auth.GroupManager) *MgoUserManager {
 	mngr := &MgoUserManager{
-		UserColl:  db.C("mgoauth_user"),
-		LoginColl: db.C("mgoauth_login"),
+		UserColl:        db.C("mgoauth_user"),
+		LoginColl:       db.C("mgoauth_login"),
+		OnlineThreshold: time.Minute * 5,
+		GroupMngr:       groupMngr,
 	}
 
 	mngr.Formater, _ = NewSimpleChecker(9)
@@ -36,7 +38,7 @@ func NewMgoUserManager(db *mgo.Database) *MgoUserManager {
 
 // GroupManager returns the GroupManager.
 func (m *MgoUserManager) GroupManager() auth.GroupManager {
-	return m.groupMngr
+	return m.GroupMngr
 }
 
 func hashPwd(pwd string) (auth.Password, error) {
@@ -118,8 +120,13 @@ func (m *MgoUserManager) AddUserDetail(email, pwd string, app bool,
 		return nil, err
 	}
 
-	u.Privilege = pri
-	u.Info = *info
+	if pri != nil {
+		u.Privilege = pri
+	}
+
+	if info != nil {
+		u.Info = *info
+	}
 
 	err = m.insertUser(u)
 	if err != nil {
@@ -231,42 +238,36 @@ func (m *MgoUserManager) FindUserByEmail(email string) (*auth.User, error) {
 
 func (m *MgoUserManager) findAllUser(offsetKey interface{}, limit int,
 	filter bson.M) ([]*auth.User, error) {
-	if limit < 0 {
+	if limit == 0 {
 		return nil, ErrNoResult
+	}
+
+	if filter == nil {
+		filter = bson.M{}
 	}
 
 	if offsetKey != nil {
 		oid, err := getId(offsetKey)
-		if err != nil {
-			return nil, err
-		} else {
-			if filter == nil {
-				filter = bson.M{}
-			}
+		if err == nil {
 			filter["_id"] = bson.M{"$gt": oid}
 		}
 	}
 
+	query := m.UserColl.Find(filter)
 	var accounts []*auth.User
 	if limit > 0 {
+		query.Limit(limit)
 		accounts = make([]*auth.User, 0, limit)
 	} else {
 		accounts = []*auth.User{}
 	}
 
-	err := m.UserColl.Find(filter).Limit(limit).All(&accounts)
+	err := query.All(&accounts)
 	if err != nil {
 		return nil, err
 	}
 
-	n := len(accounts)
-	userLst := make([]*auth.User, n, n)
-
-	for idx, u := range accounts {
-		userLst[idx] = u
-	}
-
-	return userLst, nil
+	return accounts, nil
 }
 
 // FindAllUser finds and return a slice of user.
@@ -285,20 +286,6 @@ func (m *MgoUserManager) FindAllUserOnline(offsetId interface{}, limit int) (
 	return m.findAllUser(offsetId, limit, bson.M{
 		"lastactivity": bson.M{"$lt": time.Now().Add(m.OnlineThreshold)},
 	})
-}
-
-// CountUserOnline counts the number of user current Loged.
-// It counts the user that LastActivity+OnlineThreshold<Now.
-func (m *MgoUserManager) CountUserOnline() int {
-	n, err := m.UserColl.Find(bson.M{"lastactivity": bson.M{
-		"$lt": time.Now().
-			Add(m.OnlineThreshold),
-	}}).Count()
-	if err == nil {
-		return n
-	}
-
-	return 0
 }
 
 // ValidateUser validate user email and password.
@@ -428,7 +415,7 @@ func (m *MgoUserManager) Can(user *auth.User, do string) bool {
 		aid = append(aid, v.Id)
 	}
 
-	groups, err := m.groupMngr.FindSomeGroup(aid...)
+	groups, err := m.GroupMngr.FindSomeGroup(aid...)
 	if err != nil {
 		return false
 	}
@@ -440,6 +427,11 @@ func (m *MgoUserManager) Can(user *auth.User, do string) bool {
 	}
 
 	return false
+}
+
+func (m *MgoUserManager) Close() error {
+	m.UserColl.Database.Session.Close()
+	return nil
 }
 
 var _ auth.UserManager = &MgoUserManager{}

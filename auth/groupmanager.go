@@ -41,4 +41,9 @@ type GroupManager interface {
 	// FindAllGroup finds and return a slice of group. offsetId define which
 	// sub-sequence of matching groups to be returned.
 	FindAllGroup(offsetId interface{}, limit int) ([]*Group, error)
+	// DeleteGroup deletes a group from database base on the given id;
+	// It returns an error describes the first issue encountered, if any.
+	DeleteGroup(id interface{}) error
+	// Close clean the resources used by the manager if need.
+	Close() error
 }
