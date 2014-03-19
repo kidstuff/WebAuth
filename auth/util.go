@@ -8,23 +8,22 @@ import (
 func BadRequestHanlder(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
 	rw.WriteHeader(http.StatusBadRequest)
-	rw.Write([]byte("{error:\"Badd Request\"}"))
+	rw.Write([]byte(`{"error":"Badd Request"}`))
 }
 
 func ForbiddenHanlder(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
 	rw.WriteHeader(http.StatusForbidden)
-	rw.Write([]byte("{error:\"" + ErrNotLogged.Error() + "\"}"))
+	rw.Write([]byte(`{"error":"` + ErrNotLogged.Error() + `"}`))
 }
 
 func InternalServerErrorHanlder(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
-	rw.WriteHeader(http.StatusForbidden)
-	rw.Write([]byte("{error:\"Internal Server Error\"}"))
+	rw.WriteHeader(http.StatusInternalServerError)
+	rw.Write([]byte(`{"error":"Internal Server Error"}`))
 }
 
-func OAuthHandleWrapper(handler http.HandlerFunc,
-	pri map[string]bool) http.HandlerFunc {
+func OAuthHandleWrapper(handler http.HandlerFunc, pri ...string) http.HandlerFunc {
 	return func(rw http.ResponseWriter, req *http.Request) {
 		userMngr, err := Provider().OpenUserMngr()
 		if err != nil {
@@ -43,12 +42,10 @@ func OAuthHandleWrapper(handler http.HandlerFunc,
 			return
 		}
 
-		for key, val := range pri {
-			if val {
-				if !userMngr.Can(user, key) {
-					ForbiddenHanlder(rw, req)
-					return
-				}
+		for _, val := range pri {
+			if !userMngr.Can(user, val) {
+				ForbiddenHanlder(rw, req)
+				return
 			}
 		}
 
