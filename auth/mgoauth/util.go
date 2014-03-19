@@ -8,8 +8,7 @@ import (
 )
 
 type LoginState struct {
-	On        time.Time
-	Threshold time.Duration
+	ExpiredOn time.Time
 	UserId    bson.ObjectId
 	Token     string `bson:"_id"`
 }
@@ -31,7 +30,7 @@ func getId(id interface{}) (bson.ObjectId, error) {
 }
 
 // EnsureIndex builds the index for users data and login state collection.
-func EnsureIndex(db *mgo.Database, onlineThreshold time.Duration) error {
+func EnsureIndex(db *mgo.Database) error {
 	groupColl := db.C("mgoauth_group")
 	userColl := db.C("mgoauth_user")
 	loginColl := db.C("mgoauth_login")
@@ -51,7 +50,6 @@ func EnsureIndex(db *mgo.Database, onlineThreshold time.Duration) error {
 
 	err = loginColl.EnsureIndex(mgo.Index{
 		Key:      []string{"userid"},
-		Unique:   true,
 		DropDups: true,
 	})
 	if err != nil {
@@ -59,8 +57,8 @@ func EnsureIndex(db *mgo.Database, onlineThreshold time.Duration) error {
 	}
 
 	err = loginColl.EnsureIndex(mgo.Index{
-		Key:         []string{"on"},
-		ExpireAfter: onlineThreshold,
+		Key:         []string{"expiredon"},
+		ExpireAfter: time.Minute,
 	})
 
 	err = groupColl.EnsureIndex(mgo.Index{

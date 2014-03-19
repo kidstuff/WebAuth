@@ -332,13 +332,14 @@ func (m *MgoUserManager) updateLastActivity(id bson.ObjectId) (*auth.User, error
 func (m *MgoUserManager) GetUser(token string) (*auth.User, error) {
 	state := LoginState{}
 	err := m.LoginColl.FindId(token).One(&state)
-	if err == mgo.ErrNotFound {
-		return nil, auth.ErrNotLogged
-	} else {
+	if err != nil {
+		if err == mgo.ErrNotFound {
+			return nil, auth.ErrNotLogged
+		}
 		return nil, err
 	}
 
-	if !state.On.Add(state.Threshold).After(time.Now()) {
+	if !state.ExpiredOn.After(time.Now()) {
 		m.LoginColl.RemoveId(token)
 	}
 
@@ -346,7 +347,7 @@ func (m *MgoUserManager) GetUser(token string) (*auth.User, error) {
 }
 
 // Login logs user in.
-// Stay must be < default OnlineThreshold user will stay in OnlineThreshold.
+// IF stay lester than default OnlineThreshold user will stay in OnlineThreshold.
 func (m *MgoUserManager) Login(id interface{}, stay time.Duration) (string, error) {
 	if stay < m.OnlineThreshold {
 		stay = m.OnlineThreshold
@@ -358,8 +359,7 @@ func (m *MgoUserManager) Login(id interface{}, stay time.Duration) (string, erro
 	}
 
 	state := LoginState{
-		On:        time.Now(),
-		Threshold: stay,
+		ExpiredOn: time.Now().Add(stay),
 		UserId:    oid,
 		Token: oid.Hex() + base64.URLEncoding.
 			EncodeToString(securecookie.GenerateRandomKey(64)),
