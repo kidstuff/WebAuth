@@ -10,6 +10,7 @@ func GetToken(rw http.ResponseWriter, req *http.Request) {
 
 	userMngr, err := auth.Provider().OpenUserMngr()
 	if err != nil {
+		print(err.Error())
 		auth.InternalServerErrorHanlder(rw, req)
 		return
 	}
@@ -25,23 +26,24 @@ func GetToken(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	if grantType != "password" {
-		http.Error(rw, `{error:"Only passowrd grant_type supported"}`,
+		http.Error(rw, `{"error":"Only passowrd grant_type supported"}`,
 			http.StatusNotImplemented)
 		return
 	}
 
 	user, err := userMngr.ValidateUser(email, password)
 	if err != nil {
-		http.Error(rw, `{error:"Invlaid emaill or password"}`,
+		http.Error(rw, `{"error":"Invlaid emaill or password"}`,
 			http.StatusUnauthorized)
 		return
 	}
 
-	token, err := userMngr.Login(user.Id, 300)
+	token, err := userMngr.Login(user.Id, OnlineThreshold)
 	if err != nil {
+		print(err.Error())
 		auth.InternalServerErrorHanlder(rw, req)
 		return
 	}
 
-	rw.Write([]byte(`{access_token:"` + token + `"}`))
+	rw.Write([]byte(`{"access_token":"` + token + `"}`))
 }
