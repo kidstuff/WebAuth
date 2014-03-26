@@ -8,6 +8,7 @@ import (
 	"github.com/kidstuff/WebAuth/auth"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
+	"log"
 	"time"
 )
 
@@ -417,6 +418,7 @@ func (m *MgoUserManager) Can(user *auth.User, do string) bool {
 
 	groups, err := m.GroupMngr.FindSomeGroup(aid...)
 	if err != nil {
+		log.Println("mgoauth: cannot find user group to determine privilege - ", err)
 		return false
 	}
 
