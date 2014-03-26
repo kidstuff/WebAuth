@@ -19,7 +19,6 @@ type BriefGroup struct {
 
 type Group struct {
 	BriefGroup `bson:",inline"`
-	Name       string
 	Info       GroupInfo `datastore:",noindex"`
 	Privilege  map[string]bool
 }
