@@ -18,6 +18,7 @@ func NewMgoGroupManager(db *mgo.Database) *MgoGroupManager {
 func (m *MgoGroupManager) AddGroupDetail(name string, info *auth.GroupInfo,
 	pri map[string]bool) (*auth.Group, error) {
 	group := &auth.Group{}
+	group.Id = bson.NewObjectId()
 	group.Name = name
 	group.Info = *info
 	group.Privilege = pri
