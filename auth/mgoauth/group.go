@@ -85,7 +85,13 @@ func (m *MgoGroupManager) FindSomeGroup(id ...interface{}) (
 		return nil, ErrNoResult
 	}
 
-	return nil, nil
+	groups := make([]*auth.Group, 0, len(aid))
+	err := m.GroupColl.Find(bson.M{"_id": bson.M{"$in": aid}}).All(&groups)
+	if err != nil {
+		return nil, err
+	}
+
+	return groups, nil
 }
 
 // FindAllGroup finds and return a slice of group. offsetId define which
