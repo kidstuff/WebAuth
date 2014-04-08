@@ -52,6 +52,11 @@ func GetToken(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// hide sensitive data
+	user.Pwd = auth.Password{}
+	user.OldPwd = user.Pwd
+	user.ConfirmCodes = map[string]string{}
+
 	inf := LoginInfo{user, time.Now().Add(OnlineThreshold), token}
 	json.NewEncoder(rw).Encode(&inf)
 }
