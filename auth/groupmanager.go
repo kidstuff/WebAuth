@@ -20,7 +20,7 @@ type BriefGroup struct {
 type Group struct {
 	BriefGroup `bson:",inline"`
 	Info       GroupInfo `datastore:",noindex"`
-	Privilege  map[string]bool
+	Privilege  []string
 }
 
 type GroupInfo struct {
@@ -29,10 +29,10 @@ type GroupInfo struct {
 
 type GroupManager interface {
 	// AddGroupDetail adds a group with full detail to database.
-	AddGroupDetail(name string, info *GroupInfo, pri map[string]bool) (*Group,
+	AddGroupDetail(name string, info *GroupInfo, pri []string) (*Group,
 		error)
 	// UpdateGroupDetail updates group detail specific by id.
-	UpdateGroupDetail(id interface{}, info *GroupInfo, pri map[string]bool) error
+	UpdateGroupDetail(id interface{}, info *GroupInfo, pri []string) error
 	// FindGroup find the group specific by id.
 	FindGroup(id interface{}) (*Group, error)
 	// FindSomeGroup find and return a slice of group specific by thier id.

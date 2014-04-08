@@ -69,6 +69,8 @@ func (m *MgoUserManager) newUser(email, pwd string, app bool) (*auth.User, error
 	u := &auth.User{}
 	u.Id = bson.NewObjectId()
 	u.Email = email
+	u.LastActivity = time.Now()
+	u.Info.JoinDay = u.LastActivity
 
 	p, err := hashPwd(pwd)
 	if err != nil {
@@ -115,7 +117,7 @@ func (m *MgoUserManager) AddUser(email, pwd string, app bool) (*auth.User,
 // If app is false, the user is waiting to be approved.
 // It returns an error describes the first issue encountered, if any.
 func (m *MgoUserManager) AddUserDetail(email, pwd string, app bool,
-	info *auth.UserInfo, pri map[string]bool) (*auth.User, error) {
+	info *auth.UserInfo, pri []string) (*auth.User, error) {
 	u, err := m.newUser(email, pwd, app)
 	if err != nil {
 		return nil, err
@@ -143,7 +145,7 @@ func (m *MgoUserManager) UpdateUser(user *auth.User) error {
 
 // UpdateUserDetail changes detail of user specify by id.
 func (m *MgoUserManager) UpdateUserDetail(id interface{}, app *bool,
-	info *auth.UserInfo, pri map[string]bool, code map[string]string,
+	info *auth.UserInfo, pri []string, code map[string]string,
 	groups []auth.BriefGroup) error {
 	oid, err := getId(id)
 	if err != nil {
@@ -407,8 +409,10 @@ func (m *MgoUserManager) ValidConfirmCode(id interface{}, key, code string,
 
 // Can uses GroupManager to determines if user have privilege to do something.
 func (m *MgoUserManager) Can(user *auth.User, do string) bool {
-	if user.Privilege[do] {
-		return true
+	for _, pri := range user.Privilege {
+		if do == pri {
+			return true
+		}
 	}
 
 	aid := make([]interface{}, 0, len(user.BriefGroups))
@@ -423,8 +427,10 @@ func (m *MgoUserManager) Can(user *auth.User, do string) bool {
 	}
 
 	for _, v := range groups {
-		if v.Privilege[do] {
-			return true
+		for _, pri := range v.Privilege {
+			if do == pri {
+				return true
+			}
 		}
 	}
 

@@ -16,7 +16,7 @@ func NewMgoGroupManager(db *mgo.Database) *MgoGroupManager {
 
 // AddGroupDetail adds a group with full detail to database.
 func (m *MgoGroupManager) AddGroupDetail(name string, info *auth.GroupInfo,
-	pri map[string]bool) (*auth.Group, error) {
+	pri []string) (*auth.Group, error) {
 	group := &auth.Group{}
 	group.Id = bson.NewObjectId()
 	group.Name = name
@@ -36,7 +36,7 @@ func (m *MgoGroupManager) AddGroupDetail(name string, info *auth.GroupInfo,
 
 // UpdateGroupDetail updates group detail specific by id.
 func (m *MgoGroupManager) UpdateGroupDetail(id interface{}, info *auth.GroupInfo,
-	pri map[string]bool) error {
+	pri []string) error {
 	oid, err := getId(id)
 	if err != nil {
 		return err

@@ -48,6 +48,16 @@ func EnsureIndex(db *mgo.Database) error {
 		return err
 	}
 
+	err = userColl.EnsureIndexKey("privilege")
+	if err != nil {
+		return err
+	}
+
+	err = userColl.EnsureIndexKey("briefgroups._id")
+	if err != nil {
+		return err
+	}
+
 	err = loginColl.EnsureIndex(mgo.Index{
 		Key:      []string{"userid"},
 		DropDups: true,

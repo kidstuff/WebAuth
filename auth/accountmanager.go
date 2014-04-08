@@ -15,7 +15,7 @@ type User struct {
 	Pwd          Password
 	LastActivity time.Time
 	Info         UserInfo `datastore:",noindex"`
-	Privilege    map[string]bool
+	Privilege    []string
 	Approved     bool
 	ConfirmCodes map[string]string
 	BriefGroups  []BriefGroup
@@ -57,11 +57,11 @@ type UserManager interface {
 	// If app is false, the user is waiting to be approved.
 	// It returns an error describes the first issue encountered, if any.
 	AddUserDetail(email, pwd string, app bool, info *UserInfo,
-		pri map[string]bool) (*User, error)
+		pri []string) (*User, error)
 	// UpdateUserDetail changes detail of user specify by id. Set nill value to
 	// keep the current field.
 	UpdateUserDetail(id interface{}, app *bool, info *UserInfo,
-		pri map[string]bool, code map[string]string, groups []BriefGroup) error
+		pri []string, code map[string]string, groups []BriefGroup) error
 	// ChangePassword changes passowrd of user specify by id.
 	ChangePassword(id interface{}, pwd string) error
 	// DeleteUser deletes an user from database base on the given id;

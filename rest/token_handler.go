@@ -1,9 +1,17 @@
 package rest
 
 import (
+	"encoding/json"
 	"github.com/kidstuff/WebAuth/auth"
 	"net/http"
+	"time"
 )
+
+type LoginInfo struct {
+	User        *auth.User
+	ExpiredOn   time.Time
+	AccessToken string
+}
 
 func GetToken(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -40,10 +48,10 @@ func GetToken(rw http.ResponseWriter, req *http.Request) {
 
 	token, err := userMngr.Login(user.Id, OnlineThreshold)
 	if err != nil {
-		print(err.Error())
 		auth.InternalServerErrorHanlder(rw, req)
 		return
 	}
 
-	rw.Write([]byte(`{"access_token":"` + token + `"}`))
+	inf := LoginInfo{user, time.Now().Add(OnlineThreshold), token}
+	json.NewEncoder(rw).Encode(&inf)
 }
