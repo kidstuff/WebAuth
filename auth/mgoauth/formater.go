@@ -24,7 +24,7 @@ func NewSimpleChecker(pwdlen int) (*SimpleChecker, error) {
 }
 
 func (c *SimpleChecker) PasswordValidate(pwd string) bool {
-	return len(pwd) > c.pwdlen
+	return len(pwd) >= c.pwdlen
 }
 
 func (c *SimpleChecker) EmailValidate(email string) bool {
