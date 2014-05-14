@@ -154,19 +154,19 @@ func (m *MgoUserManager) UpdateUserDetail(id interface{}, app *bool,
 
 	change := bson.M{}
 	if app != nil {
-		change["approved"] = *app
+		change["Approved"] = *app
 	}
 	if info != nil {
-		change["info"] = info
+		change["Info"] = info
 	}
 	if pri != nil {
-		change["privilege"] = pri
+		change["Privilege"] = pri
 	}
 	if code != nil {
-		change["confirmcodes"] = code
+		change["ConfirmCodes"] = code
 	}
 	if groups != nil {
-		change["briefgroups"] = groups
+		change["BriefGroups"] = groups
 	}
 
 	return m.UserColl.UpdateId(oid, bson.M{"$set": change})
@@ -191,8 +191,8 @@ func (m *MgoUserManager) ChangePassword(id interface{}, pwd string) error {
 	}
 
 	return m.UserColl.UpdateId(oid, bson.M{"$set": bson.M{
-		"oldpwd": u.OldPwd,
-		"pwd":    p,
+		"OldPwd": u.OldPwd,
+		"Pwd":    p,
 	}})
 }
 
@@ -231,7 +231,7 @@ func (m *MgoUserManager) FindUserByEmail(email string) (*auth.User, error) {
 	}
 
 	u := &auth.User{}
-	err := m.UserColl.Find(bson.M{"email": email}).One(u)
+	err := m.UserColl.Find(bson.M{"Email": email}).One(u)
 	if err != nil {
 		return nil, err
 	}
@@ -287,7 +287,7 @@ func (m *MgoUserManager) FindAllUser(offsetId interface{}, limit int) (
 func (m *MgoUserManager) FindAllUserOnline(offsetId interface{}, limit int) (
 	[]*auth.User, error) {
 	return m.findAllUser(offsetId, limit, bson.M{
-		"lastactivity": bson.M{"$lt": time.Now().Add(m.OnlineThreshold)},
+		"LastActivity": bson.M{"$lt": time.Now().Add(m.OnlineThreshold)},
 	})
 }
 
@@ -320,7 +320,7 @@ func (m *MgoUserManager) updateLastActivity(id bson.ObjectId) (*auth.User, error
 	u.LastActivity = time.Now()
 	// ??? should we ignore the error return here?
 	err = m.UserColl.UpdateId(id, bson.M{
-		"$set": bson.M{"lastactivity": u.LastActivity},
+		"$set": bson.M{"LastActivity": u.LastActivity},
 	})
 	if err != nil {
 		return nil, err

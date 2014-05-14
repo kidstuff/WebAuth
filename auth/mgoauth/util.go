@@ -8,9 +8,9 @@ import (
 )
 
 type LoginState struct {
-	ExpiredOn time.Time
-	UserId    bson.ObjectId
-	Token     string `bson:"_id"`
+	ExpiredOn time.Time     `bson:"ExpiredOn"`
+	UserId    bson.ObjectId `bson:"UserId"`
+	Token     string        `bson:"_id"`
 }
 
 // getId returns bson.ObjectId form given id.
@@ -36,30 +36,30 @@ func EnsureIndex(db *mgo.Database) error {
 	loginColl := db.C("mgoauth_login")
 
 	err := userColl.EnsureIndex(mgo.Index{
-		Key:    []string{"email"},
+		Key:    []string{"Email"},
 		Unique: true,
 	})
 	if err != nil {
 		return err
 	}
 
-	err = userColl.EnsureIndexKey("lastactivity")
+	err = userColl.EnsureIndexKey("LastActivity")
 	if err != nil {
 		return err
 	}
 
-	err = userColl.EnsureIndexKey("privilege")
+	err = userColl.EnsureIndexKey("Privilege")
 	if err != nil {
 		return err
 	}
 
-	err = userColl.EnsureIndexKey("briefgroups._id")
+	err = userColl.EnsureIndexKey("BriefGroups._id")
 	if err != nil {
 		return err
 	}
 
 	err = loginColl.EnsureIndex(mgo.Index{
-		Key:      []string{"userid"},
+		Key:      []string{"UserId"},
 		DropDups: true,
 	})
 	if err != nil {
@@ -67,12 +67,12 @@ func EnsureIndex(db *mgo.Database) error {
 	}
 
 	err = loginColl.EnsureIndex(mgo.Index{
-		Key:         []string{"expiredon"},
+		Key:         []string{"ExpiredOn"},
 		ExpireAfter: time.Minute,
 	})
 
 	err = groupColl.EnsureIndex(mgo.Index{
-		Key:    []string{"name"},
+		Key:    []string{"Name"},
 		Unique: true,
 	})
 

@@ -44,10 +44,10 @@ func (m *MgoGroupManager) UpdateGroupDetail(id interface{}, info *auth.GroupInfo
 
 	change := bson.M{}
 	if info != nil {
-		change["info"] = info
+		change["Info"] = info
 	}
 	if pri != nil {
-		change["privilege"] = pri
+		change["Privilege"] = pri
 	}
 
 	return m.GroupColl.UpdateId(oid, bson.M{"$set": change})

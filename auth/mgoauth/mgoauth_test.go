@@ -16,7 +16,8 @@ func TestUserManager(t *testing.T) {
 	db := dbsess.DB("mgoauth_test")
 	defer db.DropDatabase()
 
-	var mngr auth.UserManager = NewMgoUserManager(db)
+	var gmngr auth.GroupManager = NewMgoGroupManager(db)
+	var mngr auth.UserManager = NewMgoUserManager(db, gmngr)
 
 	u1, err := mngr.AddUser("test1@open-vn.org", "password123", true)
 	if err != nil {
@@ -24,7 +25,7 @@ func TestUserManager(t *testing.T) {
 	}
 
 	u2, err := mngr.AddUserDetail("test2@open-vn.org", "password123", true,
-		&auth.UserInfo{FirstName: "Nguyen"}, map[string]bool{"test": true})
+		&auth.UserInfo{FirstName: "Nguyen"}, []string{"test"})
 	if err != nil {
 		t.Fatal("Failed to insert new user with detail:", err)
 	}
