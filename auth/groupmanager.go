@@ -14,17 +14,17 @@ var (
 
 type BriefGroup struct {
 	Id   interface{} `bson:"_id"`
-	Name string
+	Name string      `bson:"Name"`
 }
 
 type Group struct {
-	BriefGroup `bson:",inline"`
-	Info       GroupInfo `datastore:",noindex"`
-	Privilege  []string
+	BriefGroup `bson:"BriefGroup,inline"`
+	Info       GroupInfo `bson:"Info" datastore:",noindex"`
+	Privilege  []string  `bson:"Privilege"`
 }
 
 type GroupInfo struct {
-	Description string
+	Description string `bson:"Description"`
 }
 
 type GroupManager interface {

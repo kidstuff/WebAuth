@@ -9,41 +9,41 @@ import (
 )
 
 type User struct {
-	Id           interface{} `bson:"_id"`
-	Email        string
-	OldPwd       Password
-	Pwd          Password
-	LastActivity time.Time
-	Info         UserInfo `datastore:",noindex"`
-	Privilege    []string
-	Approved     bool
-	ConfirmCodes map[string]string
-	BriefGroups  []BriefGroup
+	Id           interface{}       `bson:"_id"`
+	Email        string            `bson:"Email"`
+	OldPwd       Password          `bson:"OldPwd"`
+	Pwd          Password          `bson:"Pwd"`
+	LastActivity time.Time         `bson:"LastActivity`
+	Info         UserInfo          `bson:"Info" datastore:",noindex"`
+	Privilege    []string          `bson:"Privilege"`
+	Approved     bool              `bson:"Approved"`
+	ConfirmCodes map[string]string `bson:"ConfirmCodes"`
+	BriefGroups  []BriefGroup      `bson:"BriefGroups"`
 }
 
 type Password struct {
-	Hashed []byte
-	Salt   []byte
-	InitAt time.Time
+	Hashed []byte    `bson:"Hashed"`
+	Salt   []byte    `bson:"Salt"`
+	InitAt time.Time `bson:"InitAt"`
 }
 
 type UserInfo struct {
-	FirstName  string
-	LastName   string
-	MiddleName string
-	NickName   string
-	BirthDay   time.Time
-	JoinDay    time.Time
-	Address    []Address
-	Phone      []string
+	FirstName  string    `bson:"FirstName"`
+	LastName   string    `bson:"LastName"`
+	MiddleName string    `bson:"MiddleName"`
+	NickName   string    `bson:"NickName"`
+	BirthDay   time.Time `bson:"BirthDay"`
+	JoinDay    time.Time `bson:"JoinDay"`
+	Address    []Address `bson:"Address"`
+	Phone      []string  `bson:"Phone"`
 }
 
 type Address struct {
-	Country  string
-	State    string
-	City     string
-	District string
-	Street   string
+	Country  string `bson:"Country"`
+	State    string `bson:"State"`
+	City     string `bson:"City"`
+	District string `bson:"District"`
+	Street   string `bson:"Street"`
 }
 
 type UserManager interface {
