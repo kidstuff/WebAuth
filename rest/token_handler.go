@@ -22,6 +22,7 @@ func GetToken(rw http.ResponseWriter, req *http.Request) {
 		auth.InternalServerErrorHanlder(rw, req)
 		return
 	}
+	defer userMngr.Close()
 
 	grantType := req.FormValue("grant_type")
 	email := req.FormValue("email")
@@ -54,7 +55,7 @@ func GetToken(rw http.ResponseWriter, req *http.Request) {
 
 	// hide sensitive data
 	user.Pwd = auth.Password{}
-	user.OldPwd = user.Pwd
+	user.OldPwd = []auth.Password{}
 	user.ConfirmCodes = map[string]string{}
 
 	inf := LoginInfo{user, time.Now().Add(OnlineThreshold), token}

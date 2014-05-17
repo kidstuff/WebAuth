@@ -190,10 +190,10 @@ func (m *MgoUserManager) ChangePassword(id interface{}, pwd string) error {
 		return err
 	}
 
-	return m.UserColl.UpdateId(oid, bson.M{"$set": bson.M{
-		"OldPwd": u.OldPwd,
-		"Pwd":    p,
-	}})
+	return m.UserColl.UpdateId(oid, bson.M{
+		"$set":  bson.M{"Pwd": p},
+		"$push": bson.M{"OldPwd": u.OldPwd},
+	})
 }
 
 // DeleteUserByEmail deletes an user from database base on the given id;
