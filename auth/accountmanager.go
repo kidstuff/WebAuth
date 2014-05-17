@@ -11,10 +11,10 @@ import (
 type User struct {
 	Id           interface{}       `bson:"_id"`
 	Email        string            `bson:"Email"`
-	OldPwd       Password          `bson:"OldPwd"`
+	OldPwd       []Password        `bson:"OldPwd"`
 	Pwd          Password          `bson:"Pwd"`
 	LastActivity time.Time         `bson:"LastActivity`
-	Info         UserInfo          `bson:"Info" datastore:",noindex"`
+	Info         UserInfo          `bson:"Info"`
 	Privilege    []string          `bson:"Privilege"`
 	Approved     bool              `bson:"Approved"`
 	ConfirmCodes map[string]string `bson:"ConfirmCodes"`
