@@ -9,15 +9,15 @@ import (
 )
 
 type User struct {
-	Id           interface{}       `bson:"_id"`
+	Id           interface{}       `bson:"_id" datastore:"-"`
 	Email        string            `bson:"Email"`
 	OldPwd       []Password        `bson:"OldPwd"`
 	Pwd          Password          `bson:"Pwd"`
 	LastActivity time.Time         `bson:"LastActivity`
-	Info         UserInfo          `bson:"Info"`
+	Info         UserInfo          `bson:"Info" datastore:",noindex"`
 	Privilege    []string          `bson:"Privilege"`
 	Approved     bool              `bson:"Approved"`
-	ConfirmCodes map[string]string `bson:"ConfirmCodes"`
+	ConfirmCodes map[string]string `bson:"ConfirmCodes" datastore:"-"`
 	BriefGroups  []BriefGroup      `bson:"BriefGroups"`
 }
 
