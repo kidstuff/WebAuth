@@ -3,9 +3,8 @@ package gaeauth
 import (
 	"appengine"
 	"appengine/datastore"
-	"code.google.com/p/go.crypto/bcrypt"
-	"github.com/gorilla/securecookie"
 	"github.com/kidstuff/WebAuth/auth"
+	"github.com/kidstuff/WebAuth/auth/util"
 	"time"
 )
 
@@ -46,7 +45,8 @@ func (u *user) Save(c chan<- datastore.Property) error {
 }
 
 type GAEUserManager struct {
-	ctx appengine.Context
+	ctx      appengine.Context
+	Formater util.FormatChecker
 }
 
 func (m *GAEUserManager) GroupManager() auth.GroupManager {
@@ -54,36 +54,21 @@ func (m *GAEUserManager) GroupManager() auth.GroupManager {
 
 }
 
-func hashPwd(pwd string) (auth.Password, error) {
-	p := auth.Password{}
-	p.InitAt = time.Now()
-	p.Salt = securecookie.GenerateRandomKey(32)
-
-	pwdBytes := []byte(pwd)
-	tmp := make([]byte, len(pwdBytes)+len(p.Salt))
-	copy(tmp, pwdBytes)
-	tmp = append(tmp, p.Salt...)
-	b, err := bcrypt.GenerateFromPassword(tmp, bcrypt.DefaultCost)
-	p.Hashed = b
-
-	return p, err
-}
-
 func (m *GAEUserManager) newUser(email, pwd string, app bool) (*auth.User, error) {
-	// if !m.Formater.EmailValidate(email) {
-	// 	return nil, auth.ErrInvalidEmail
-	// }
+	if !m.Formater.EmailValidate(email) {
+		return nil, auth.ErrInvalidEmail
+	}
 
-	// if !m.Formater.PasswordValidate(pwd) {
-	// 	return nil, auth.ErrInvalidPassword
-	// }
+	if !m.Formater.PasswordValidate(pwd) {
+		return nil, auth.ErrInvalidPassword
+	}
 
 	u := &auth.User{}
 	u.Email = email
 	u.LastActivity = time.Now()
 	u.Info.JoinDay = u.LastActivity
 
-	p, err := hashPwd(pwd)
+	p, err := util.HashPwd(pwd)
 	if err != nil {
 		return nil, err
 	}
@@ -109,18 +94,29 @@ func (m *GAEUserManager) insertUser(u *auth.User) error {
 }
 
 func (m *GAEUserManager) AddUser(email, pwd string, app bool) (*auth.User, error) {
-	panic("not implemeted")
+	user, err := m.newUser(email, pwd, app)
+	if err != nil {
+		return nil, err
+	}
 
+	err = m.insertUser(user)
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
 }
 
-func (m *GAEUserManager) AddUserDetail(email, pwd string, app bool, info *auth.UserInfo,
-	pri []string) (*auth.User, error) {
-	panic("not implemeted")
+func (m *GAEUserManager) AddUserDetail(user *auth.User) (*auth.User, error) {
+	err := m.insertUser(user)
+	if err != nil {
+		return nil, err
+	}
 
+	return user, nil
 }
 
-func (m *GAEUserManager) UpdateUserDetail(id interface{}, app *bool, info *auth.UserInfo,
-	pri []string, code map[string]string, groups []auth.BriefGroup) error {
+func (m *GAEUserManager) UpdateUserDetail(user *auth.User) error {
 	panic("not implemeted")
 
 }
@@ -187,3 +183,5 @@ func (m *GAEUserManager) Can(user *auth.User, do string) bool {
 func (m *GAEUserManager) Close() error {
 	panic("not implemeted")
 }
+
+var _ auth.UserManager = &GAEUserManager{}

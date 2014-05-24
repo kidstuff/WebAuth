@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+const (
+	ErrCodeInvalidInput     float32 = 1.0
+	ErrCodeInvalidGrantType float32 = 1.1
+)
+
 type LoginInfo struct {
 	User        *auth.User
 	ExpiredOn   time.Time
@@ -18,8 +23,7 @@ func GetToken(rw http.ResponseWriter, req *http.Request) {
 
 	userMngr, err := auth.Provider().OpenUserMngr()
 	if err != nil {
-		print(err.Error())
-		auth.InternalServerErrorHanlder(rw, req)
+		auth.InternalErrorResponse(rw, &auth.JSONErr{Message: err.Error()})
 		return
 	}
 	defer userMngr.Close()
@@ -30,26 +34,36 @@ func GetToken(rw http.ResponseWriter, req *http.Request) {
 
 	// TODO: more detail error message
 	if len(grantType) == 0 || len(email) == 0 || len(password) == 0 {
-		auth.BadRequestHanlder(rw, req)
+		auth.BadRequestResponse(rw, &auth.JSONErr{
+			Code:        ErrCodeInvalidInput,
+			Message:     "Invalid input",
+			Description: "grant_type, email and password need to be set.",
+		})
 		return
 	}
 
 	if grantType != "password" {
-		http.Error(rw, `{"error":"Only passowrd grant_type supported"}`,
-			http.StatusNotImplemented)
+		auth.ErrorResponse(rw, http.StatusNotImplemented, &auth.JSONErr{
+			Code:        ErrCodeInvalidGrantType,
+			Message:     "Invlaid grant_type",
+			Description: "Only support grant_type=password",
+		})
 		return
 	}
 
 	user, err := userMngr.ValidateUser(email, password)
 	if err != nil {
-		http.Error(rw, `{"error":"Invlaid emaill or password"}`,
-			http.StatusUnauthorized)
+		auth.UnauthorizedResponse(rw, &auth.JSONErr{
+			Code:        auth.ErrCodeNotLogged,
+			Message:     err.Error(),
+			Description: "Invlaid emaill or password.",
+		})
 		return
 	}
 
 	token, err := userMngr.Login(user.Id, OnlineThreshold)
 	if err != nil {
-		auth.InternalServerErrorHanlder(rw, req)
+		auth.InternalErrorResponse(rw, &auth.JSONErr{Message: err.Error()})
 		return
 	}
 

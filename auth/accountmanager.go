@@ -53,15 +53,12 @@ type UserManager interface {
 	// If app is false, the user is waiting to be approved.
 	// It returns an error describes the first issue encountered, if any.
 	AddUser(email, pwd string, app bool) (*User, error)
-	// AddUserInfo adds an user to database;
-	// If app is false, the user is waiting to be approved.
+	// AddUserDetail add a User with full detail to database.
 	// It returns an error describes the first issue encountered, if any.
-	AddUserDetail(email, pwd string, app bool, info *UserInfo,
-		pri []string) (*User, error)
-	// UpdateUserDetail changes detail of user specify by id. Set nill value to
-	// keep the current field.
-	UpdateUserDetail(id interface{}, app *bool, info *UserInfo,
-		pri []string, code map[string]string, groups []BriefGroup) error
+	AddUserDetail(*User) (*User, error)
+	// UpdateUserDetail changes detail of the User.
+	// It returns an error describes the first issue encountered, if any.
+	UpdateUserDetail(*User) error
 	// ChangePassword changes passowrd of user specify by id.
 	ChangePassword(id interface{}, pwd string) error
 	// DeleteUser deletes an user from database base on the given id;

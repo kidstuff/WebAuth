@@ -6,6 +6,7 @@ import (
 	"errors"
 	"github.com/gorilla/securecookie"
 	"github.com/kidstuff/WebAuth/auth"
+	"github.com/kidstuff/WebAuth/auth/util"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 	"log"
@@ -20,10 +21,12 @@ type MgoUserManager struct {
 	OnlineThreshold time.Duration
 	UserColl        *mgo.Collection
 	LoginColl       *mgo.Collection
-	Formater        FormatChecker
+	Formater        util.FormatChecker
 	GroupMngr       auth.GroupManager
 }
 
+// NewMgoUserManager create new MgoUserManager with UserColl name "mgoauth_user"
+// and LoginColl name "mgoauth_login" with default 5 minutes for OnlineThreshold.
 func NewMgoUserManager(db *mgo.Database, groupMngr auth.GroupManager) *MgoUserManager {
 	mngr := &MgoUserManager{
 		UserColl:        db.C("mgoauth_user"),
@@ -32,7 +35,7 @@ func NewMgoUserManager(db *mgo.Database, groupMngr auth.GroupManager) *MgoUserMa
 		GroupMngr:       groupMngr,
 	}
 
-	mngr.Formater, _ = NewSimpleChecker(9)
+	mngr.Formater, _ = util.NewSimpleChecker(9)
 
 	return mngr
 }
@@ -42,21 +45,8 @@ func (m *MgoUserManager) GroupManager() auth.GroupManager {
 	return m.GroupMngr
 }
 
-func hashPwd(pwd string) (auth.Password, error) {
-	p := auth.Password{}
-	p.InitAt = time.Now()
-	p.Salt = securecookie.GenerateRandomKey(32)
-
-	pwdBytes := []byte(pwd)
-	tmp := make([]byte, len(pwdBytes)+len(p.Salt))
-	copy(tmp, pwdBytes)
-	tmp = append(tmp, p.Salt...)
-	b, err := bcrypt.GenerateFromPassword(tmp, bcrypt.DefaultCost)
-	p.Hashed = b
-
-	return p, err
-}
-
+// newUser create an *auth.User without save it to database.
+// Its set an BSON ObjectID and check email,password.
 func (m *MgoUserManager) newUser(email, pwd string, app bool) (*auth.User, error) {
 	if !m.Formater.EmailValidate(email) {
 		return nil, auth.ErrInvalidEmail
@@ -72,7 +62,7 @@ func (m *MgoUserManager) newUser(email, pwd string, app bool) (*auth.User, error
 	u.LastActivity = time.Now()
 	u.Info.JoinDay = u.LastActivity
 
-	p, err := hashPwd(pwd)
+	p, err := util.HashPwd(pwd)
 	if err != nil {
 		return nil, err
 	}
@@ -83,6 +73,8 @@ func (m *MgoUserManager) newUser(email, pwd string, app bool) (*auth.User, error
 	return u, nil
 }
 
+// insertUser inserts User to database.
+// the user with that email exist. Note that indexes musted create fo MongoDB.
 func (m *MgoUserManager) insertUser(u *auth.User) error {
 	err := m.UserColl.Insert(u)
 	if err != nil {
@@ -95,7 +87,7 @@ func (m *MgoUserManager) insertUser(u *auth.User) error {
 	return nil
 }
 
-// AddUser adds an user to database with email and password;
+// AddUser will generate user's Id and adds an user to database with email and password;
 // If app is false, the user is waiting to be approved.
 // It returns an error describes the first issue encountered, if any.
 func (m *MgoUserManager) AddUser(email, pwd string, app bool) (*auth.User,
@@ -113,63 +105,24 @@ func (m *MgoUserManager) AddUser(email, pwd string, app bool) (*auth.User,
 	return u, nil
 }
 
-// AddUserInfo adds an user to database;
-// If app is false, the user is waiting to be approved.
+// AddUserDetail will generate user's Id and adds an user to database;
 // It returns an error describes the first issue encountered, if any.
-func (m *MgoUserManager) AddUserDetail(email, pwd string, app bool,
-	info *auth.UserInfo, pri []string) (*auth.User, error) {
-	u, err := m.newUser(email, pwd, app)
-	if err != nil {
-		return nil, err
-	}
-
-	if pri != nil {
-		u.Privilege = pri
-	}
-
-	if info != nil {
-		u.Info = *info
-	}
-
-	err = m.insertUser(u)
-	if err != nil {
-		return nil, err
-	}
-
-	return u, nil
+func (m *MgoUserManager) AddUserDetail(u *auth.User) (*auth.User, error) {
+	u.Id = bson.NewObjectId()
+	err := m.insertUser(u)
+	return u, err
 }
 
-func (m *MgoUserManager) UpdateUser(user *auth.User) error {
-	return m.UserColl.UpdateId(user.Id, user)
-}
-
-// UpdateUserDetail changes detail of user specify by id.
-func (m *MgoUserManager) UpdateUserDetail(id interface{}, app *bool,
-	info *auth.UserInfo, pri []string, code map[string]string,
-	groups []auth.BriefGroup) error {
-	oid, err := getId(id)
+// UpdateUserDetail update user infomation to database.
+// The user object must have a valid Id field.
+// It returns an error describes the first issue encountered, if any.
+func (m *MgoUserManager) UpdateUserDetail(u *auth.User) error {
+	oid, err := getId(u.Id)
 	if err != nil {
 		return err
 	}
 
-	change := bson.M{}
-	if app != nil {
-		change["Approved"] = *app
-	}
-	if info != nil {
-		change["Info"] = info
-	}
-	if pri != nil {
-		change["Privilege"] = pri
-	}
-	if code != nil {
-		change["ConfirmCodes"] = code
-	}
-	if groups != nil {
-		change["BriefGroups"] = groups
-	}
-
-	return m.UserColl.UpdateId(oid, bson.M{"$set": change})
+	return m.UserColl.UpdateId(oid, u)
 }
 
 // ChangePassword changes passowrd of user specify by id.
@@ -185,7 +138,7 @@ func (m *MgoUserManager) ChangePassword(id interface{}, pwd string) error {
 		return err
 	}
 
-	p, err := hashPwd(pwd)
+	p, err := util.HashPwd(pwd)
 	if err != nil {
 		return err
 	}
@@ -400,7 +353,7 @@ func (m *MgoUserManager) ValidConfirmCode(id interface{}, key, code string,
 				GenerateRandomKey(64))
 		}
 
-		m.UpdateUserDetail(id, nil, nil, nil, user.ConfirmCodes, nil)
+		m.UpdateUserDetail(user)
 		return true, nil
 	}
 

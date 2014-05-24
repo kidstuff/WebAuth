@@ -1,4 +1,4 @@
-package mgoauth
+package auth
 
 import (
 	"regexp"
