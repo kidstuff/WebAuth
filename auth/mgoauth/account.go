@@ -6,7 +6,6 @@ import (
 	"errors"
 	"github.com/gorilla/securecookie"
 	"github.com/kidstuff/WebAuth/auth"
-	"github.com/kidstuff/WebAuth/auth/util"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 	"log"
@@ -21,7 +20,7 @@ type MgoUserManager struct {
 	OnlineThreshold time.Duration
 	UserColl        *mgo.Collection
 	LoginColl       *mgo.Collection
-	Formater        util.FormatChecker
+	Formater        auth.FormatChecker
 	GroupMngr       auth.GroupManager
 }
 
@@ -35,7 +34,7 @@ func NewMgoUserManager(db *mgo.Database, groupMngr auth.GroupManager) *MgoUserMa
 		GroupMngr:       groupMngr,
 	}
 
-	mngr.Formater, _ = util.NewSimpleChecker(9)
+	mngr.Formater, _ = auth.NewSimpleChecker(9)
 
 	return mngr
 }
@@ -62,7 +61,7 @@ func (m *MgoUserManager) newUser(email, pwd string, app bool) (*auth.User, error
 	u.LastActivity = time.Now()
 	u.Info.JoinDay = u.LastActivity
 
-	p, err := util.HashPwd(pwd)
+	p, err := auth.HashPwd(pwd)
 	if err != nil {
 		return nil, err
 	}
@@ -113,8 +112,7 @@ func (m *MgoUserManager) AddUserDetail(u *auth.User) (*auth.User, error) {
 	return u, err
 }
 
-// UpdateUserDetail update user infomation to database.
-// The user object must have a valid Id field.
+// UpdateUserDetail update user infomation specific by Id and Email field.
 // It returns an error describes the first issue encountered, if any.
 func (m *MgoUserManager) UpdateUserDetail(u *auth.User) error {
 	oid, err := getId(u.Id)
@@ -122,7 +120,10 @@ func (m *MgoUserManager) UpdateUserDetail(u *auth.User) error {
 		return err
 	}
 
-	return m.UserColl.UpdateId(oid, u)
+	return m.UserColl.Update(bson.M{
+		"_id":   oid,
+		"Email": u.Email,
+	}, u)
 }
 
 // ChangePassword changes passowrd of user specify by id.
@@ -138,7 +139,7 @@ func (m *MgoUserManager) ChangePassword(id interface{}, pwd string) error {
 		return err
 	}
 
-	p, err := util.HashPwd(pwd)
+	p, err := auth.HashPwd(pwd)
 	if err != nil {
 		return err
 	}
