@@ -51,9 +51,13 @@ type UserManager interface {
 	GroupManager() GroupManager
 	// AddUser adds an user to database with email and password;
 	// If app is false, the user is waiting to be approved.
+	// Implement of this method should valid email, pwd and make sure the user
+	// email are unique.
 	// It returns an error describes the first issue encountered, if any.
 	AddUser(email, pwd string, app bool) (*User, error)
 	// AddUserDetail add a User with full detail to database.
+	// Implement of this method should valid email, pwd and make sure the user
+	// email are unique.
 	// It returns an error describes the first issue encountered, if any.
 	AddUserDetail(*User) (*User, error)
 	// UpdateUserDetail changes detail of the User.

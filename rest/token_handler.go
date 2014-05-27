@@ -21,7 +21,7 @@ type LoginInfo struct {
 func GetToken(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
 
-	userMngr, err := auth.Provider().OpenUserMngr()
+	userMngr, err := auth.Provider().OpenUserMngr(req)
 	if err != nil {
 		auth.InternalErrorResponse(rw, &auth.JSONErr{Message: err.Error()})
 		return

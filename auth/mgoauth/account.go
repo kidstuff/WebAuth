@@ -69,6 +69,12 @@ func (m *MgoUserManager) newUser(email, pwd string, app bool) (*auth.User, error
 	u.Pwd = p
 
 	u.Approved = app
+	if !app {
+		u.ConfirmCodes = map[string]string{
+			"activate": base64.URLEncoding.EncodeToString(securecookie.GenerateRandomKey(64)),
+		}
+	}
+
 	return u, nil
 }
 
@@ -87,7 +93,7 @@ func (m *MgoUserManager) insertUser(u *auth.User) error {
 }
 
 // AddUser will generate user's Id and adds an user to database with email and password;
-// If app is false, the user is waiting to be approved.
+// If app is false, the user is waiting to be approved by confirm code.
 // It returns an error describes the first issue encountered, if any.
 func (m *MgoUserManager) AddUser(email, pwd string, app bool) (*auth.User,
 	error) {
@@ -395,5 +401,3 @@ func (m *MgoUserManager) Close() error {
 	m.UserColl.Database.Session.Close()
 	return nil
 }
-
-var _ auth.UserManager = &MgoUserManager{}

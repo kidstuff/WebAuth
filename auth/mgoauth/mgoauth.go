@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/kidstuff/WebAuth/auth"
 	"labix.org/v2/mgo"
+	"net/http"
 )
 
 var (
@@ -15,7 +16,7 @@ type MgoAuthProvider struct {
 	DBName string
 }
 
-func (p *MgoAuthProvider) OpenUserMngr() (auth.UserManager, error) {
+func (p *MgoAuthProvider) OpenUserMngr(*http.Request) (auth.UserManager, error) {
 	if DefaultProvider.DBSess == nil {
 		return nil, ErrNotInit
 	}
@@ -23,7 +24,7 @@ func (p *MgoAuthProvider) OpenUserMngr() (auth.UserManager, error) {
 	return NewMgoUserManager(db, NewMgoGroupManager(db)), nil
 }
 
-func (p *MgoAuthProvider) OpenGroupMngr() (auth.GroupManager, error) {
+func (p *MgoAuthProvider) OpenGroupMngr(*http.Request) (auth.GroupManager, error) {
 	if DefaultProvider.DBSess == nil {
 		return nil, ErrNotInit
 	}

@@ -44,7 +44,7 @@ func UnauthorizedResponse(rw http.ResponseWriter, err *JSONErr) {
 
 func OAuthHandleWrapper(handler http.HandlerFunc, pri ...string) http.HandlerFunc {
 	return func(rw http.ResponseWriter, req *http.Request) {
-		userMngr, err := Provider().OpenUserMngr()
+		userMngr, err := Provider().OpenUserMngr(req)
 		if err != nil {
 			InternalErrorResponse(rw, &JSONErr{Message: err.Error()})
 		}

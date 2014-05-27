@@ -9,6 +9,7 @@ package auth
 
 import (
 	"errors"
+	"net/http"
 )
 
 var (
@@ -21,8 +22,8 @@ var (
 )
 
 type AuthProvider interface {
-	OpenUserMngr() (UserManager, error)
-	OpenGroupMngr() (GroupManager, error)
+	OpenUserMngr(*http.Request) (UserManager, error)
+	OpenGroupMngr(*http.Request) (GroupManager, error)
 }
 
 var (
