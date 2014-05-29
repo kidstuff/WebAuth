@@ -5,6 +5,8 @@
 package auth
 
 import (
+	"encoding/base64"
+	"github.com/gorilla/securecookie"
 	"time"
 )
 
@@ -19,6 +21,33 @@ type User struct {
 	Approved     bool              `bson:"Approved"`
 	ConfirmCodes map[string]string `bson:"ConfirmCodes" datastore:"-"`
 	BriefGroups  []BriefGroup      `bson:"BriefGroups"`
+}
+
+func (u *User) ChangePassword(pwd string) error {
+	var err error
+	u.OldPwd = append(u.OldPwd, u.Pwd)
+	u.Pwd, err = HashPwd(pwd)
+
+	return err
+}
+
+// ValidConfirmCode valid the code for specific key of the user specify by id.
+// Re-generate or delete code for that key if need.
+func (u *User) ValidConfirmCode(key, code string, regen, del bool) bool {
+	if u.ConfirmCodes[key] == code {
+		if del {
+			delete(u.ConfirmCodes, key)
+		}
+
+		if regen {
+			u.ConfirmCodes[key] = base64.URLEncoding.EncodeToString(securecookie.
+				GenerateRandomKey(64))
+		}
+
+		return true
+	}
+
+	return false
 }
 
 type Password struct {
@@ -63,8 +92,6 @@ type UserManager interface {
 	// UpdateUserDetail changes detail of the User.
 	// It returns an error describes the first issue encountered, if any.
 	UpdateUserDetail(*User) error
-	// ChangePassword changes passowrd of user specify by id.
-	ChangePassword(id interface{}, pwd string) error
 	// DeleteUser deletes an user from database base on the given id;
 	// It returns an error describes the first issue encountered, if any.
 	DeleteUser(id interface{}) error
@@ -95,9 +122,6 @@ type UserManager interface {
 	Login(id interface{}, stay time.Duration) (string, error)
 	// Logout logs the current user out.
 	Logout(token string) error
-	// ValidConfirmCode valid the code for specific key of the user specify by id.
-	// Re-generate or delete code for that key if need.
-	ValidConfirmCode(id interface{}, key, code string, regen, del bool) (bool, error)
 	// Can uses GroupManager to determines if user have privilege to do something.
 	Can(user *User, do string) bool
 	// Close clean the resources used by the manager if need.

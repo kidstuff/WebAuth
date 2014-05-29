@@ -132,30 +132,6 @@ func (m *MgoUserManager) UpdateUserDetail(u *auth.User) error {
 	}, u)
 }
 
-// ChangePassword changes passowrd of user specify by id.
-func (m *MgoUserManager) ChangePassword(id interface{}, pwd string) error {
-	oid, err := getId(id)
-	if err != nil {
-		return err
-	}
-
-	u := &auth.User{}
-	err = m.UserColl.FindId(oid).One(&u)
-	if err != nil {
-		return err
-	}
-
-	p, err := auth.HashPwd(pwd)
-	if err != nil {
-		return err
-	}
-
-	return m.UserColl.UpdateId(oid, bson.M{
-		"$set":  bson.M{"Pwd": p},
-		"$push": bson.M{"OldPwd": u.OldPwd},
-	})
-}
-
 // DeleteUserByEmail deletes an user from database base on the given id;
 // It returns an error describes the first issue encountered, if any.
 func (m *MgoUserManager) DeleteUser(id interface{}) error {
@@ -339,32 +315,6 @@ func (m *MgoUserManager) Login(id interface{}, stay time.Duration) (string, erro
 // Logout logs the current user out.
 func (m *MgoUserManager) Logout(token string) error {
 	return m.LoginColl.RemoveId(token)
-}
-
-// ValidConfirmCode valid the code for specific key of the user specify by id.
-// Re-generate or delete code for that key if need.
-func (m *MgoUserManager) ValidConfirmCode(id interface{}, key, code string,
-	regen, del bool) (bool, error) {
-	user, err := m.FindUser(id)
-	if err != nil {
-		return false, err
-	}
-
-	if user.ConfirmCodes[key] == code {
-		if del {
-			delete(user.ConfirmCodes, key)
-		}
-
-		if regen {
-			user.ConfirmCodes[key] = base64.URLEncoding.EncodeToString(securecookie.
-				GenerateRandomKey(64))
-		}
-
-		m.UpdateUserDetail(user)
-		return true, nil
-	}
-
-	return false, nil
 }
 
 // Can uses GroupManager to determines if user have privilege to do something.

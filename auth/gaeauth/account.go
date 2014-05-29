@@ -121,11 +121,6 @@ func (m *GAEUserManager) UpdateUserDetail(user *auth.User) error {
 
 }
 
-func (m *GAEUserManager) ChangePassword(id interface{}, pwd string) error {
-	panic("not implemeted")
-
-}
-
 func (m *GAEUserManager) DeleteUser(id interface{}) error {
 	panic("not implemeted")
 
@@ -167,11 +162,6 @@ func (m *GAEUserManager) Login(id interface{}, stay time.Duration) (string, erro
 }
 
 func (m *GAEUserManager) Logout(token string) error {
-	panic("not implemeted")
-
-}
-
-func (m *GAEUserManager) ValidConfirmCode(id interface{}, key, code string, regen, del bool) (bool, error) {
 	panic("not implemeted")
 
 }
