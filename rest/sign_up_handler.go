@@ -2,9 +2,11 @@ package rest
 
 import (
 	"encoding/json"
+	"github.com/gorilla/mux"
 	"github.com/kidstuff/WebAuth/auth"
 	"github.com/kidstuff/WebAuth/rest/config"
 	"github.com/kidstuff/WebAuth/rest/util"
+	"log"
 	"net/http"
 )
 
@@ -14,6 +16,8 @@ const (
 	ErrCodeInvlaidPwd        float32 = 1.4
 	ErrCodeDupEmail          float32 = 1.5
 	ErrCodeInvalidEmail      float32 = 1.6
+	ErrCodeInvalidId         float32 = 1.7
+	ErrCodeNotExistId        float32 = 1.9
 )
 
 func SignUp(rw http.ResponseWriter, req *http.Request) {
@@ -79,19 +83,42 @@ func SignUp(rw http.ResponseWriter, req *http.Request) {
 		auth.InternalErrorResponse(rw, &auth.JSONErr{Message: err.Error()})
 		return
 	}
-	defer conf.Close()
 
-	err = util.SendSimpleMail(conf, u.Email, "Email confirm", u.ConfirmCodes["activate"])
-	if err != nil {
-		auth.InternalErrorResponse(rw, &auth.JSONErr{Message: err.Error()})
-		return
-	}
+	go func() {
+		err = util.SendSimpleMail(conf, u.Email, "Email confirm", u.ConfirmCodes["activate"])
+		if err != nil {
+			log.Println("rest: SendSimpleMail", err)
+		}
+		conf.Close()
+	}()
 
-	rw.Write([]byte(`{"message":"email sent to ` + u.Email + `"}`))
+	rw.WriteHeader(http.StatusAccepted)
+	rw.Write([]byte(`{"Message":"email sent to ` + u.Email + `"}`))
 }
 
 func ActiveAccount(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	vars := mux.Vars(req)
+	idStr := vars["id"]
+	if len(idStr) == 0 {
+		auth.BadRequestResponse(rw, &auth.JSONErr{
+			Code:        ErrCodeInvalidId,
+			Message:     "Missing 'id' from request",
+			Description: "The request URI must be /active/{id}?code=xxxx",
+		})
+		return
+	}
+
+	code := req.FormValue("code")
+	if len(code) == 0 {
+		auth.BadRequestResponse(rw, &auth.JSONErr{
+			Code:        1.8,
+			Message:     "Missing 'code' from request parameter",
+			Description: "The request URI must be /active/{id}?code=xxxx",
+		})
+		return
+	}
 
 	userMngr, err := auth.Provider().OpenUserMngr(req)
 	if err != nil {
@@ -100,5 +127,32 @@ func ActiveAccount(rw http.ResponseWriter, req *http.Request) {
 	}
 	defer userMngr.Close()
 
-	//userMngr.ValidConfirmCode(id, key, code, false, true)
+	u, err := userMngr.FindUser(idStr)
+	if err != nil {
+		auth.ErrorResponse(rw, http.StatusPreconditionFailed, &auth.JSONErr{
+			Code:    ErrCodeNotExistId,
+			Message: "Account not exists",
+		})
+		return
+	}
+
+	if ok := u.ValidConfirmCode("activate", code, false, true); !ok {
+		auth.ErrorResponse(rw, http.StatusPreconditionFailed, &auth.JSONErr{
+			Code:    1.8,
+			Message: "Invlaid activate code",
+		})
+		return
+	}
+
+	u.Approved = true
+	err = userMngr.UpdateUserDetail(u)
+	if err != nil {
+		auth.InternalErrorResponse(rw, &auth.JSONErr{
+			Message:     err.Error(),
+			Description: "Error when updating user infomation to database.",
+		})
+		return
+	}
+
+	rw.Write([]byte(`{"Message":"Account activated"}`))
 }

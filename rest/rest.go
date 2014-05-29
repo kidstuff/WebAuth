@@ -12,4 +12,5 @@ var (
 func Handler(router *mux.Router) {
 	router.HandleFunc("/tokens", GetToken)
 	router.HandleFunc("/signup", SignUp)
+	router.HandleFunc("/active/{id}", ActiveAccount)
 }
