@@ -9,6 +9,7 @@ import (
 const (
 	ErrCodeUnknown   float32 = 0.0
 	ErrCodeNotLogged float32 = 0.1
+	ErrNoPermission  float32 = 0.2
 )
 
 // JSONErr returned to the user an informative error json message
@@ -77,7 +78,7 @@ func OAuthHandleWrapper(handler http.HandlerFunc, pri ...string) http.HandlerFun
 
 		if cannot {
 			ForbiddenResponse(rw, &JSONErr{
-				Code:        2,
+				Code:        ErrNoPermission,
 				Message:     "User doesn't have valid permission.",
 				Description: "User doesn't have " + cannotDo + " permission.",
 			})

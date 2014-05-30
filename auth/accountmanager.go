@@ -5,6 +5,7 @@
 package auth
 
 import (
+	"code.google.com/p/go.crypto/bcrypt"
 	"encoding/base64"
 	"github.com/gorilla/securecookie"
 	"time"
@@ -13,13 +14,13 @@ import (
 type User struct {
 	Id           interface{}       `bson:"_id" datastore:"-"`
 	Email        string            `bson:"Email"`
-	OldPwd       []Password        `bson:"OldPwd"`
-	Pwd          Password          `bson:"Pwd"`
+	OldPwd       []Password        `bson:"OldPwd" json:",omitempty"`
+	Pwd          Password          `bson:"Pwd" json:",omitempty"`
 	LastActivity time.Time         `bson:"LastActivity`
 	Info         UserInfo          `bson:"Info" datastore:",noindex"`
 	Privilege    []string          `bson:"Privilege"`
 	Approved     bool              `bson:"Approved"`
-	ConfirmCodes map[string]string `bson:"ConfirmCodes" datastore:"-"`
+	ConfirmCodes map[string]string `bson:"ConfirmCodes" datastore:"-" json:",omitempty"`
 	BriefGroups  []BriefGroup      `bson:"BriefGroups"`
 }
 
@@ -29,6 +30,18 @@ func (u *User) ChangePassword(pwd string) error {
 	u.Pwd, err = HashPwd(pwd)
 
 	return err
+}
+
+func (u *User) ComparePassword(pwd string) error {
+	pwdBytes := []byte(pwd)
+	tmp := make([]byte, len(pwdBytes)+len(u.Pwd.Salt))
+	copy(tmp, pwdBytes)
+	tmp = append(tmp, u.Pwd.Salt...)
+	if err := bcrypt.CompareHashAndPassword(u.Pwd.Hashed, tmp); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // ValidConfirmCode valid the code for specific key of the user specify by id.

@@ -1,7 +1,6 @@
 package mgoauth
 
 import (
-	"code.google.com/p/go.crypto/bcrypt"
 	"encoding/base64"
 	"errors"
 	"github.com/gorilla/securecookie"
@@ -235,15 +234,7 @@ func (m *MgoUserManager) ValidateUser(email, pwd string) (*auth.User, error) {
 		return nil, err
 	}
 
-	pwdBytes := []byte(pwd)
-	tmp := make([]byte, len(pwdBytes)+len(u.Pwd.Salt))
-	copy(tmp, pwdBytes)
-	tmp = append(tmp, u.Pwd.Salt...)
-	if err := bcrypt.CompareHashAndPassword(u.Pwd.Hashed, tmp); err != nil {
-		return nil, err
-	}
-
-	return u, nil
+	return u, u.ComparePassword(pwd)
 }
 
 func (m *MgoUserManager) updateLastActivity(id bson.ObjectId) (*auth.User, error) {
