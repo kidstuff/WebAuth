@@ -18,6 +18,19 @@ type LoginInfo struct {
 	AccessToken string
 }
 
+/*
+GetToken handle both POST and GET method to obtain login token.
+Note that only "password" support for "grant_type" right now.
+
+Example Request:
+  GET /tokens?grant_type=password&email=nguyen@open-vn.org&password=xxxxxxxxx
+Example Success Response:
+  {
+    "User": {...}, // auth.User object with empty Pwd, OldPwd, ConfirmCodes
+    "ExpiredOn": "2009-11-10T23:00:00Z",
+    "AccessToken": "afE.....MNWt-HfVYcFOs7w_ryOzvsYA==" // a secure random base64 encoded string
+  }
+*/
 func GetToken(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
 

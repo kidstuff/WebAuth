@@ -20,6 +20,23 @@ const (
 	ErrCodeNotExistId        float32 = 1.9
 )
 
+/*
+SignUp handle the request for account sign-up. The handler will
+check the email and password format. If success it will send an
+email and immediately return a 202 status code.
+
+Example Request Body:
+  POST /signup
+  {
+    "Email": "nguyen@open-vn.org",
+    "Pwd": "xxxxxxxxx",
+    "PwdRepeat": "xxxxxxxxx"
+  }
+Example Success Response:
+  {
+    "Message":"email sent to nguyen@open-vn.org"
+  }
+*/
 func SignUp(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
 
@@ -54,7 +71,9 @@ func SignUp(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	u, err := userMngr.AddUser(credential.Email, credential.PwdRepeat, false)
+	var app bool
+
+	u, err := userMngr.AddUser(credential.Email, credential.PwdRepeat, app)
 	if err != nil {
 		switch err {
 		case auth.ErrInvalidEmail:
@@ -84,18 +103,32 @@ func SignUp(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	go func() {
-		err = util.SendSimpleMail(conf, u.Email, "Email confirm", u.ConfirmCodes["activate"])
-		if err != nil {
-			log.Println("rest: SendSimpleMail", err)
-		}
-		conf.Close()
-	}()
+	if !app {
+		// TODO(!)
+		// time out control for mail send
+		go func() {
+			err = util.SendSimpleMail(conf, u.Email, "Email confirm", u.ConfirmCodes["activate"])
+			if err != nil {
+				log.Println("rest: SendSimpleMail", err)
+			}
+			conf.Close()
+		}()
+	}
 
 	rw.WriteHeader(http.StatusAccepted)
 	rw.Write([]byte(`{"Message":"email sent to ` + u.Email + `"}`))
 }
 
+/*
+ActiveAccount handle active request by using confirm code.
+
+Example Request:
+  GET /active/some-kind-of-ID?code=secure-random-base64-string
+Example Success Response:
+  {
+    "Message":"Account activated"
+  }
+*/
 func ActiveAccount(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
 
