@@ -1,53 +1,17 @@
 package auth
 
 import (
-	"encoding/json"
+	"github.com/gorilla/mux"
+	"github.com/kidstuff/WebUtil/response"
 	"net/http"
 	"strings"
 )
 
-const (
-	ErrCodeUnknown   float32 = 0.0
-	ErrCodeNotLogged float32 = 0.1
-	ErrNoPermission  float32 = 0.2
-)
-
-// JSONErr returned to the user an informative error json message
-type JSONErr struct {
-	Code        float32
-	Message     string
-	Description string    `json:",omitempty"`
-	StackStrace string    `json:",omitempty"`
-	Errors      []JSONErr `json:",omitempty"`
-}
-
-func ErrorResponse(rw http.ResponseWriter, sttCode int, err *JSONErr) {
-	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
-	rw.WriteHeader(sttCode)
-	json.NewEncoder(rw).Encode(err)
-}
-
-func BadRequestResponse(rw http.ResponseWriter, err *JSONErr) {
-	ErrorResponse(rw, http.StatusBadRequest, err)
-}
-
-func ForbiddenResponse(rw http.ResponseWriter, err *JSONErr) {
-	ErrorResponse(rw, http.StatusForbidden, err)
-}
-
-func InternalErrorResponse(rw http.ResponseWriter, err *JSONErr) {
-	ErrorResponse(rw, http.StatusInternalServerError, err)
-}
-
-func UnauthorizedResponse(rw http.ResponseWriter, err *JSONErr) {
-	ErrorResponse(rw, http.StatusUnauthorized, err)
-}
-
-func OAuthHandleWrapper(handler http.HandlerFunc, pri ...string) http.HandlerFunc {
+func OAuthHandleWrapper(handler http.HandlerFunc, groups []string, pri []string) http.HandlerFunc {
 	return func(rw http.ResponseWriter, req *http.Request) {
 		userMngr, err := Provider().OpenUserMngr(req)
 		if err != nil {
-			InternalErrorResponse(rw, &JSONErr{Message: err.Error()})
+			response.InternalErrorResponse(rw, &response.JSONErr{Message: err.Error()})
 		}
 		defer userMngr.Close()
 
@@ -55,15 +19,26 @@ func OAuthHandleWrapper(handler http.HandlerFunc, pri ...string) http.HandlerFun
 		user, err := userMngr.GetUser(token)
 		if err != nil {
 			if err == ErrNotLogged {
-				ForbiddenResponse(rw, &JSONErr{
-					Code:        ErrCodeNotLogged,
+				response.ForbiddenResponse(rw, &response.JSONErr{
+					Code:        response.ErrCodeNotLogged,
 					Message:     err.Error(),
 					Description: "User need to be logged in to perform this action.",
 				})
 				return
 			}
-			InternalErrorResponse(rw, &JSONErr{Message: err.Error()})
+			response.InternalErrorResponse(rw, &response.JSONErr{Message: err.Error()})
 			return
+		}
+
+		if len(groups) > 0 {
+			for _, bg := range user.BriefGroups {
+				for _, g2 := range groups {
+					if bg.Name == g2 {
+						handler(rw, req)
+						return
+					}
+				}
+			}
 		}
 
 		var (
@@ -77,8 +52,8 @@ func OAuthHandleWrapper(handler http.HandlerFunc, pri ...string) http.HandlerFun
 		}
 
 		if cannot {
-			ForbiddenResponse(rw, &JSONErr{
-				Code:        ErrNoPermission,
+			response.ForbiddenResponse(rw, &response.JSONErr{
+				Code:        response.ErrNoPermission,
 				Message:     "User doesn't have valid permission.",
 				Description: "User doesn't have " + cannotDo + " permission.",
 			})
@@ -86,6 +61,58 @@ func OAuthHandleWrapper(handler http.HandlerFunc, pri ...string) http.HandlerFun
 		}
 
 		// run user defined handler
+		handler(rw, req)
+	}
+}
+
+func OAuthOwnerPrivilegeWrapper(handler http.HandlerFunc, userIdField string) http.HandlerFunc {
+	return func(rw http.ResponseWriter, req *http.Request) {
+		userMngr, err := Provider().OpenUserMngr(req)
+		if err != nil {
+			response.InternalErrorResponse(rw, &response.JSONErr{Message: err.Error()})
+		}
+		defer userMngr.Close()
+
+		token := strings.TrimPrefix(req.Header.Get("Authorization"), "Bearer ")
+		user, err := userMngr.GetUser(token)
+		if err != nil {
+			if err == ErrNotLogged {
+				response.ForbiddenResponse(rw, &response.JSONErr{
+					Code:        response.ErrCodeNotLogged,
+					Message:     err.Error(),
+					Description: "User need to be logged in to perform this action.",
+				})
+				return
+			}
+			response.InternalErrorResponse(rw, &response.JSONErr{Message: err.Error()})
+			return
+		}
+
+		vars := mux.Vars(req)
+		idStr := vars[userIdField]
+		if len(idStr) == 0 {
+			response.BadRequestResponse(rw, &response.JSONErr{
+				Message:     "Missing " + userIdField + " from request URL",
+				Description: "OAuthOwnerPrivilegeWrapper require " + userIdField + " defiend by 'userIdField' to be exist in handle pattern.",
+			})
+			return
+		}
+
+		u, err := userMngr.FindUser(idStr)
+		if err != nil {
+			response.InternalErrorResponse(rw, &response.JSONErr{Message: err.Error()})
+			return
+		}
+
+		if u.Id != user.Id {
+			response.ForbiddenResponse(rw, &response.JSONErr{
+				Code:        response.ErrNoPermission,
+				Message:     "Current user must be the owner of profile.",
+				Description: "Current user must be the owner of the profile defined by " + userIdField + " field.",
+			})
+			return
+		}
+
 		handler(rw, req)
 	}
 }

@@ -2,6 +2,7 @@ package rest
 
 import (
 	"github.com/gorilla/mux"
+	"github.com/kidstuff/WebAuth/auth"
 	"time"
 )
 
@@ -13,6 +14,8 @@ func Handler(router *mux.Router) {
 	router.HandleFunc("/tokens", GetToken)
 	router.HandleFunc("/signup", SignUp)
 	router.HandleFunc("/active/{id}", ActiveAccount)
-	router.HandleFunc("/profile/{id}/info", UserInfoUpdate)
-	router.HandleFunc("/profile/{id}/change-password", PasswordUpdate)
+	router.HandleFunc("/profiles", auth.OAuthHandleWrapper(UserList, []string{"admin"}, nil))
+	router.HandleFunc("/profiles/{id}/info", UserInfoUpdate).Methods("PUT")
+	router.HandleFunc("/profiles/{id}/info", UserInfoDetail).Methods("GET")
+	router.HandleFunc("/profiles/{id}/change-password", PasswordUpdate)
 }

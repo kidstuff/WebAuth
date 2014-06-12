@@ -2,7 +2,7 @@ package util
 
 import (
 	"errors"
-	"github.com/kidstuff/WebAuth/rest/config"
+	"github.com/kidstuff/WebUtil/config"
 	"net/smtp"
 )
 
@@ -47,6 +47,6 @@ func SendSimpleMail(c config.Configurator, to, subject, message string) error {
 		auth,
 		username,
 		[]string{to},
-		[]byte("Subject: "+subject+"\r\n\r\n"+message),
+		[]byte("MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\nSubject: "+subject+"\r\n\r\n"+message),
 	)
 }

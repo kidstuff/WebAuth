@@ -3,6 +3,7 @@ package rest
 import (
 	"encoding/json"
 	"github.com/kidstuff/WebAuth/auth"
+	"github.com/kidstuff/WebUtil/response"
 	"net/http"
 	"time"
 )
@@ -34,20 +35,13 @@ Example Success Response:
 func GetToken(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
 
-	userMngr, err := auth.Provider().OpenUserMngr(req)
-	if err != nil {
-		auth.InternalErrorResponse(rw, &auth.JSONErr{Message: err.Error()})
-		return
-	}
-	defer userMngr.Close()
-
 	grantType := req.FormValue("grant_type")
 	email := req.FormValue("email")
 	password := req.FormValue("password")
 
 	// TODO: more detail error message
 	if len(grantType) == 0 || len(email) == 0 || len(password) == 0 {
-		auth.BadRequestResponse(rw, &auth.JSONErr{
+		response.BadRequestResponse(rw, &response.JSONErr{
 			Code:        ErrCodeInvalidInput,
 			Message:     "Invalid input",
 			Description: "grant_type, email and password need to be set.",
@@ -56,7 +50,7 @@ func GetToken(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	if grantType != "password" {
-		auth.ErrorResponse(rw, http.StatusNotImplemented, &auth.JSONErr{
+		response.ErrorResponse(rw, http.StatusNotImplemented, &response.JSONErr{
 			Code:        ErrCodeInvalidGrantType,
 			Message:     "Invlaid grant_type",
 			Description: "Only support grant_type=password",
@@ -64,10 +58,17 @@ func GetToken(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	userMngr, err := auth.Provider().OpenUserMngr(req)
+	if err != nil {
+		response.InternalErrorResponse(rw, &response.JSONErr{Message: err.Error()})
+		return
+	}
+	defer userMngr.Close()
+
 	user, err := userMngr.ValidateUser(email, password)
 	if err != nil {
-		auth.UnauthorizedResponse(rw, &auth.JSONErr{
-			Code:        auth.ErrCodeNotLogged,
+		response.UnauthorizedResponse(rw, &response.JSONErr{
+			Code:        response.ErrCodeNotLogged,
 			Message:     err.Error(),
 			Description: "Invlaid emaill or password.",
 		})
@@ -76,7 +77,7 @@ func GetToken(rw http.ResponseWriter, req *http.Request) {
 
 	token, err := userMngr.Login(user.Id, OnlineThreshold)
 	if err != nil {
-		auth.InternalErrorResponse(rw, &auth.JSONErr{Message: err.Error()})
+		response.InternalErrorResponse(rw, &response.JSONErr{Message: err.Error()})
 		return
 	}
 

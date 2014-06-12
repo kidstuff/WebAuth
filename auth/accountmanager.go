@@ -17,7 +17,7 @@ type User struct {
 	OldPwd       []Password        `bson:"OldPwd" json:",omitempty"`
 	Pwd          Password          `bson:"Pwd" json:",omitempty"`
 	LastActivity time.Time         `bson:"LastActivity`
-	Info         UserInfo          `bson:"Info" datastore:",noindex"`
+	Info         UserInfo          `bson:"Info" datastore:",noindex" json:",omitempty"`
 	Privilege    []string          `bson:"Privilege"`
 	Approved     bool              `bson:"Approved"`
 	ConfirmCodes map[string]string `bson:"ConfirmCodes" datastore:"-" json:",omitempty"`

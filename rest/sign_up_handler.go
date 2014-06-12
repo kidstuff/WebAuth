@@ -2,10 +2,10 @@ package rest
 
 import (
 	"encoding/json"
-	"github.com/gorilla/mux"
 	"github.com/kidstuff/WebAuth/auth"
-	"github.com/kidstuff/WebAuth/rest/config"
 	"github.com/kidstuff/WebAuth/rest/util"
+	"github.com/kidstuff/WebUtil/config"
+	"github.com/kidstuff/WebUtil/response"
 	"log"
 	"net/http"
 )
@@ -42,7 +42,7 @@ func SignUp(rw http.ResponseWriter, req *http.Request) {
 
 	userMngr, err := auth.Provider().OpenUserMngr(req)
 	if err != nil {
-		auth.InternalErrorResponse(rw, &auth.JSONErr{Message: err.Error()})
+		response.InternalErrorResponse(rw, &response.JSONErr{Message: err.Error()})
 		return
 	}
 	defer userMngr.Close()
@@ -55,7 +55,7 @@ func SignUp(rw http.ResponseWriter, req *http.Request) {
 
 	err = json.NewDecoder(req.Body).Decode(&credential)
 	if err != nil {
-		auth.BadRequestResponse(rw, &auth.JSONErr{
+		response.BadRequestResponse(rw, &response.JSONErr{
 			Code:        ErrCodeInvalidCredential,
 			Message:     err.Error(),
 			Description: "Credential must be an valid json object contain Email, Pwd and PwdRepeat.",
@@ -64,7 +64,7 @@ func SignUp(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	if credential.Pwd != credential.PwdRepeat {
-		auth.BadRequestResponse(rw, &auth.JSONErr{
+		response.BadRequestResponse(rw, &response.JSONErr{
 			Code:    ErrCodePwdMismatch,
 			Message: "Pwd and PwdRepeat doesn't match",
 		})
@@ -77,29 +77,29 @@ func SignUp(rw http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		switch err {
 		case auth.ErrInvalidEmail:
-			auth.ErrorResponse(rw, http.StatusPreconditionFailed, &auth.JSONErr{
+			response.ErrorResponse(rw, http.StatusPreconditionFailed, &response.JSONErr{
 				Code:    ErrCodeInvalidEmail,
 				Message: err.Error(),
 			})
 		case auth.ErrInvalidPassword:
-			auth.ErrorResponse(rw, http.StatusPreconditionFailed, &auth.JSONErr{
+			response.ErrorResponse(rw, http.StatusPreconditionFailed, &response.JSONErr{
 				Code:    ErrCodeInvlaidPwd,
 				Message: err.Error(),
 			})
 		case auth.ErrDuplicateEmail:
-			auth.ErrorResponse(rw, http.StatusPreconditionFailed, &auth.JSONErr{
+			response.ErrorResponse(rw, http.StatusPreconditionFailed, &response.JSONErr{
 				Code:    ErrCodeDupEmail,
 				Message: err.Error(),
 			})
 		default:
-			auth.InternalErrorResponse(rw, &auth.JSONErr{Message: err.Error()})
+			response.InternalErrorResponse(rw, &response.JSONErr{Message: err.Error()})
 		}
 		return
 	}
 
 	conf, err := config.Provider().OpenConfigurator(req)
 	if err != nil {
-		auth.InternalErrorResponse(rw, &auth.JSONErr{Message: err.Error()})
+		response.InternalErrorResponse(rw, &response.JSONErr{Message: err.Error()})
 		return
 	}
 
@@ -132,20 +132,9 @@ Example Success Response:
 func ActiveAccount(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
 
-	vars := mux.Vars(req)
-	idStr := vars["id"]
-	if len(idStr) == 0 {
-		auth.BadRequestResponse(rw, &auth.JSONErr{
-			Code:        ErrCodeInvalidId,
-			Message:     "Missing 'id' from request",
-			Description: "The request URI must be /active/{id}?code=xxxx",
-		})
-		return
-	}
-
 	code := req.FormValue("code")
 	if len(code) == 0 {
-		auth.BadRequestResponse(rw, &auth.JSONErr{
+		response.BadRequestResponse(rw, &response.JSONErr{
 			Code:        1.8,
 			Message:     "Missing 'code' from request parameter",
 			Description: "The request URI must be /active/{id}?code=xxxx",
@@ -153,24 +142,14 @@ func ActiveAccount(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	userMngr, err := auth.Provider().OpenUserMngr(req)
+	u, userMngr, err := getUserByIdAndWriteIfError(rw, req)
 	if err != nil {
-		auth.InternalErrorResponse(rw, &auth.JSONErr{Message: err.Error()})
 		return
 	}
 	defer userMngr.Close()
 
-	u, err := userMngr.FindUser(idStr)
-	if err != nil {
-		auth.ErrorResponse(rw, http.StatusPreconditionFailed, &auth.JSONErr{
-			Code:    ErrCodeNotExistId,
-			Message: "Account not exists",
-		})
-		return
-	}
-
 	if ok := u.ValidConfirmCode("activate", code, false, true); !ok {
-		auth.ErrorResponse(rw, http.StatusPreconditionFailed, &auth.JSONErr{
+		response.ErrorResponse(rw, http.StatusPreconditionFailed, &response.JSONErr{
 			Code:    1.8,
 			Message: "Invlaid activate code",
 		})
@@ -180,7 +159,7 @@ func ActiveAccount(rw http.ResponseWriter, req *http.Request) {
 	u.Approved = true
 	err = userMngr.UpdateUserDetail(u)
 	if err != nil {
-		auth.InternalErrorResponse(rw, &auth.JSONErr{
+		response.InternalErrorResponse(rw, &response.JSONErr{
 			Message:     err.Error(),
 			Description: "Error when updating user infomation to database.",
 		})

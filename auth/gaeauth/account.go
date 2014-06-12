@@ -4,7 +4,6 @@ import (
 	"appengine"
 	"appengine/datastore"
 	"github.com/kidstuff/WebAuth/auth"
-	"github.com/kidstuff/WebAuth/auth/util"
 	"time"
 )
 
@@ -46,7 +45,7 @@ func (u *user) Save(c chan<- datastore.Property) error {
 
 type GAEUserManager struct {
 	ctx      appengine.Context
-	Formater util.FormatChecker
+	Formater auth.FormatChecker
 }
 
 func (m *GAEUserManager) GroupManager() auth.GroupManager {
@@ -68,7 +67,7 @@ func (m *GAEUserManager) newUser(email, pwd string, app bool) (*auth.User, error
 	u.LastActivity = time.Now()
 	u.Info.JoinDay = u.LastActivity
 
-	p, err := util.HashPwd(pwd)
+	p, err := auth.HashPwd(pwd)
 	if err != nil {
 		return nil, err
 	}
